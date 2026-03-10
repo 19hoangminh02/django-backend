@@ -25,9 +25,16 @@ SECRET_KEY = 'django-insecure-x+p5f9!s5_nn10jgo#q96fi@m^wvy7m5(aj@sd*mt0(&yx77y6
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = [
+	'165.22.49.145',
+	'mcshop.me',
+	'www.mcshop.me'
+]
 
-
+CSRF_TRUSTED_ORIGINS = [
+    "https://mcshop.me",
+    "https://www.mcshop.me"
+]
 # Application definition
 
 INSTALLED_APPS = [
@@ -79,8 +86,8 @@ WSGI_APPLICATION = 'fashion_shop_project.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'fashion_shop_db',
-        'USER': 'root',
+        'NAME': 'fashion_shop',
+        'USER': 'django',
         'PASSWORD': '123456',
         'HOST': 'localhost',
         'PORT': '3306',
