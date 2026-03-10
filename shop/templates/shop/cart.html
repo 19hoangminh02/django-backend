@@ -94,15 +94,12 @@
                             </div>
                             {% endfor %}
 
-                            <!-- Nút xóa toàn bộ -->
+                            <!-- Nút xóa toàn bộ (dùng JS thay vì form lồng nhau) -->
                             <div class="text-end mt-3">
-                                <form method="post" action="{% url 'shop:clear_cart' %}" style="display: inline;">
-                                    {% csrf_token %}
-                                    <button type="submit" class="btn btn-outline-danger btn-sm"
-                                        onclick="return confirm('Bạn có chắc muốn xóa toàn bộ giỏ hàng?')">
-                                        <i class="bi bi-trash"></i> Xóa toàn bộ
-                                    </button>
-                                </form>
+                                <button type="button" class="btn btn-outline-danger btn-sm" id="clear-cart-btn"
+                                    onclick="if(confirm('Bạn có chắc muốn xóa toàn bộ giỏ hàng?')) { clearCart(); }">
+                                    <i class="bi bi-trash"></i> Xóa toàn bộ
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -250,5 +247,17 @@
         // ===== TÍNH TỔNG KHI TRANG LOAD =====
         calculateTotal();
     });
+
+    // ===== XÓA TOÀN BỘ GIỎ HÀNG (ngoài form checkout để tránh form lồng nhau) =====
+    function clearCart() {
+        fetch('{% url "shop:clear_cart" %}', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}'
+            }
+        }).then(function() {
+            window.location.href = '{% url "shop:cart" %}';
+        });
+    }
 </script>
 {% endblock %}
