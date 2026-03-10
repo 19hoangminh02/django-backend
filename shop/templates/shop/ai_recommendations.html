@@ -1,0 +1,139 @@
+{% extends 'shop/base.html' %}
+{% load static %}
+{% load humanize %}
+{% load price_filters %}
+
+{% block title %}Gợi ý sản phẩm - Fashion Shop{% endblock %}
+
+{% block content %}
+<div class="container my-5 pt-3">
+    <div class="row mb-4">
+        <div class="col-12">
+            <h2 class="fw-bold mb-3">
+                <i class="bi bi-sparkles"></i> Gợi ý sản phẩm cho bạn
+            </h2>
+
+            {% if method == 'ai' %}
+            <div class="alert alert-info alert-dismissible fade show" role="alert">
+                <i class="bi bi-lightbulb"></i>
+                <strong>AI Recommendation!</strong> Dựa trên {{ view_count }} sản phẩm bạn đã xem, chúng tôi gợi ý những
+                sản phẩm phù hợp với sở thích của bạn.
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+            {% elif method == 'latest' %}
+            <div class="alert alert-info alert-dismissible fade show" role="alert">
+                <i class="bi bi-info-circle"></i>
+                <strong>Sản phẩm mới nhất!</strong> Bạn chưa có lịch sử xem, dưới đây là những sản phẩm mới nhất trong
+                cửa hàng.
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if viewed_products %}
+    <div class="row mb-5">
+        <div class="col-12">
+            <h5 class="fw-bold mb-3">
+                <i class="bi bi-clock-history"></i> Bạn đã xem gần đây
+            </h5>
+            <div class="d-flex gap-3 overflow-auto pb-3" style="scroll-behavior: smooth;">
+                {% for p in viewed_products %}
+                <div class="flex-shrink-0">
+                    <a href="{% url 'shop:product_detail' p.pk %}" class="text-decoration-none">
+                        <div class="bg-light p-2 rounded"
+                            style="width: 120px; height: 150px; display: flex; align-items: center; justify-content: center;">
+                            {% if p.image %}
+                            <img src="{{ p.image.url }}" alt="{{ p.name }}"
+                                style="max-width: 100%; max-height: 100%; object-fit: contain;">
+                            {% else %}
+                            <img src="https://via.placeholder.com/120x150" alt="{{ p.name }}">
+                            {% endif %}
+                        </div>
+                        <small class="text-dark text-center d-block mt-2 text-truncate" style="max-width: 120px;">{{ p.name }}</small>
+                    </a>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="row">
+        <div class="col-12">
+            <h5 class="fw-bold mb-4">
+                {% if method == 'ai' %}
+                <i class="bi bi-robot"></i> Sản phẩm được AI gợi ý
+                {% else %}
+                <i class="bi bi-star"></i> Sản phẩm nổi bật
+                {% endif %}
+            </h5>
+        </div>
+    </div>
+
+    {% if recommended_products %}
+    <div class="row g-4 mb-5">
+        {% for product in recommended_products %}
+        <div class="col-6 col-md-4 col-lg-3">
+            <div class="card product-card border-0 shadow-sm h-100 hover-effect" style="transition: all 0.3s ease;">
+                <div style="position: relative; overflow: hidden; height: 200px;">
+                    <a href="{% url 'shop:product_detail' product.pk %}" class="text-decoration-none">
+                        {% if product.image %}
+                        <img src="{{ product.image.url }}" class="card-img-top" alt="{{ product.name }}"
+                            style="height: 100%; object-fit: cover; transition: transform 0.3s ease;">
+                        {% else %}
+                        <img src="https://via.placeholder.com/300x200" class="card-img-top" alt="{{ product.name }}">
+                        {% endif %}
+                    </a>
+                    <span class="badge bg-danger position-absolute top-0 end-0 m-2">
+                        <i class="bi bi-star-fill"></i> Gợi ý
+                    </span>
+                </div>
+                <div class="card-body p-2">
+                    <a href="{% url 'shop:product_detail' product.pk %}" class="text-decoration-none">
+                        <h6 class="card-title text-truncate text-dark" title="{{ product.name }}">{{ product.name }}
+                        </h6>
+                    </a>
+                    <p class="text-muted small mb-2">{{ product.category.name }}</p>
+                    <p class="card-text fw-bold text-danger mb-2">{{ product.price|vnd_format }} đ</p>
+                    <a href="{% url 'shop:product_detail' product.pk %}" class="btn btn-sm btn-primary w-100">
+                        <i class="bi bi-eye"></i> Xem
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="alert alert-warning text-center" role="alert">
+        <i class="bi bi-exclamation-triangle"></i>
+        <p class="mb-0">Hiện chưa có sản phẩm gợi ý. Hãy <a href="{% url 'shop:product_list' %}">xem danh sách sản
+                phẩm</a> để khám phá!</p>
+    </div>
+    {% endif %}
+
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-center gap-3">
+                <a href="{% url 'shop:product_list' %}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> Xem tất cả sản phẩm
+                </a>
+                <a href="{% url 'shop:home' %}" class="btn btn-outline-primary">
+                    <i class="bi bi-house"></i> Trang chủ
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .hover-effect:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15) !important;
+    }
+
+    .hover-effect:hover img {
+        transform: scale(1.1);
+    }
+</style>
+{% endblock %}

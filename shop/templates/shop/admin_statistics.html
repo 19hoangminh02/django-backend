@@ -1,0 +1,301 @@
+{% extends "shop/base.html" %}
+{% load static %}
+{% load humanize %}
+{% load price_filters %}
+
+{% block title %}Thống kê Admin - Fashion Shop{% endblock %}
+
+{% block extra_css %}
+<style>
+  .stat-card {
+    border: none;
+    border-radius: 12px;
+    transition: transform .2s, box-shadow .2s
+  }
+
+  .stat-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, .15) !important
+  }
+
+  .chart-card {
+    border: none;
+    border-radius: 12px;
+    overflow: hidden
+  }
+
+  .chart-card .card-header {
+    border-bottom: 2px solid #e9ecef;
+    background: linear-gradient(135deg, #f8f9fa, #e9ecef)
+  }
+
+  .nav-pills .nav-link {
+    border-radius: 8px;
+    margin: 0 4px;
+    font-size: .85rem;
+    padding: 6px 14px
+  }
+
+  .nav-pills .nav-link.active {
+    background: linear-gradient(135deg, #667eea, #764ba2)
+  }
+
+  .inv-badge {
+    font-size: .75rem;
+    padding: 4px 10px;
+    border-radius: 20px
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-5 pt-3 px-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="fw-bold mb-0"><i class="bi bi-bar-chart-line text-primary"></i> Dashboard Thống kê</h2>
+    <a href="{% url 'shop:home' %}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left"></i> Quay
+      lại</a>
+  </div>
+
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-lg-3">
+      <div class="card stat-card bg-primary text-white shadow">
+        <div class="card-body py-3">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <p class="mb-1 small opacity-75">Tổng đơn hàng</p>
+              <h3 class="mb-0 fw-bold">{{ total_orders }}</h3>
+            </div>
+            <i class="bi bi-receipt fs-1 opacity-50"></i>
+          </div>
+          <small class="opacity-75">Đã TT: <strong>{{ total_paid_orders }}</strong></small>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-lg-3">
+      <div class="card stat-card bg-success text-white shadow">
+        <div class="card-body py-3">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <p class="mb-1 small opacity-75">Tổng doanh thu</p>
+              <h3 class="mb-0 fw-bold">{{ total_revenue|vnd_format }} đ</h3>
+            </div>
+            <i class="bi bi-cash-stack fs-1 opacity-50"></i>
+          </div>
+          <small class="opacity-75">Từ đơn đã thanh toán</small>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-lg-3">
+      <div class="card stat-card bg-info text-white shadow">
+        <div class="card-body py-3">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <p class="mb-1 small opacity-75">Sản phẩm</p>
+              <h3 class="mb-0 fw-bold">{{ total_products }}</h3>
+            </div>
+            <i class="bi bi-box-seam fs-1 opacity-50"></i>
+          </div>
+          <small class="opacity-75">Đang bán</small>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-lg-3">
+      <div class="card stat-card bg-warning text-white shadow">
+        <div class="card-body py-3">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <p class="mb-1 small opacity-75">Khách hàng</p>
+              <h3 class="mb-0 fw-bold">{{ total_users }}</h3>
+            </div>
+            <i class="bi bi-people fs-1 opacity-50"></i>
+          </div>
+          <small class="opacity-75">Chờ xử lý: <strong>{{ pending_orders }}</strong></small>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card chart-card shadow-sm mb-4">
+    <div class="card-header py-3">
+      <h5 class="mb-0 fw-bold"><i class="bi bi-graph-up text-success"></i> Biểu đồ Doanh thu</h5>
+    </div>
+    <div class="card-body">
+      <ul class="nav nav-pills mb-3" id="revenueTabs" role="tablist">
+        <li class="nav-item"><a class="nav-link active" data-bs-toggle="pill" href="#tab-daily">Theo ngày</a></li>
+        <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#tab-weekly">Theo tuần</a></li>
+        <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#tab-monthly">Theo tháng</a></li>
+        <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#tab-quarterly">Theo quý</a></li>
+        <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#tab-yearly">Theo năm</a></li>
+      </ul>
+      <div class="tab-content">
+        <div class="tab-pane fade show active" id="tab-daily">
+          <p class="text-muted small mb-2"><i class="bi bi-info-circle"></i> Doanh thu 30 ngày gần nhất</p>
+          <canvas id="dailyChart" height="80"></canvas>
+        </div>
+        <div class="tab-pane fade" id="tab-weekly">
+          <p class="text-muted small mb-2"><i class="bi bi-info-circle"></i> Doanh thu 12 tuần gần nhất</p>
+          <canvas id="weeklyChart" height="80"></canvas>
+        </div>
+        <div class="tab-pane fade" id="tab-monthly">
+          <p class="text-muted small mb-2"><i class="bi bi-info-circle"></i> Doanh thu 12 tháng gần nhất</p>
+          <canvas id="monthlyChart" height="80"></canvas>
+        </div>
+        <div class="tab-pane fade" id="tab-quarterly">
+          <p class="text-muted small mb-2"><i class="bi bi-info-circle"></i> Doanh thu theo quý</p>
+          <canvas id="quarterlyChart" height="80"></canvas>
+        </div>
+        <div class="tab-pane fade" id="tab-yearly">
+          <p class="text-muted small mb-2"><i class="bi bi-info-circle"></i> Doanh thu theo năm</p>
+          <canvas id="yearlyChart" height="80"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card chart-card shadow-sm mb-4">
+    <div class="card-header py-3">
+      <h5 class="mb-0 fw-bold"><i class="bi bi-calendar-range text-info"></i> Doanh thu theo khoảng thời gian</h5>
+    </div>
+    <div class="card-body">
+      <form method="get" class="row g-2 align-items-end mb-3">
+        <div class="col-auto"><label class="form-label small fw-bold">Từ ngày</label><input type="date" name="from_date"
+            class="form-control form-control-sm" value="{{ from_date }}"></div>
+        <div class="col-auto"><label class="form-label small fw-bold">Đến ngày</label><input type="date" name="to_date"
+            class="form-control form-control-sm" value="{{ to_date }}"></div>
+        <div class="col-auto"><button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-search"></i>
+            Xem</button></div>
+      </form>
+      {% if from_date and to_date %}
+      <div class="row mb-3">
+        <div class="col-md-4">
+          <div class="alert alert-success py-2 mb-0"><strong>Tổng doanh thu:</strong> {{ custom_total|vnd_format }} đ</div>
+        </div>
+        <div class="col-md-4">
+          <div class="alert alert-info py-2 mb-0"><strong>Số đơn:</strong> {{ custom_count }}</div>
+        </div>
+      </div>
+      <canvas id="customChart" height="80"></canvas>
+      {% else %}
+      <div class="text-center text-muted py-4"><i class="bi bi-calendar3 fs-1"></i>
+        <p class="mt-2">Chọn khoảng thời gian để xem biểu đồ</p>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="row g-4 mb-4">
+    <div class="col-lg-6">
+      <div class="card chart-card shadow-sm h-100">
+        <div class="card-header py-3 d-flex justify-content-between align-items-center">
+          <h5 class="mb-0 fw-bold"><i class="bi bi-box-seam text-warning"></i> Hàng tồn kho</h5>
+          <div>
+            <span class="inv-badge bg-success text-white">Tổng: {{ total_stock }}</span>
+            <span class="inv-badge bg-warning text-dark ms-1">Sắp hết: {{ low_stock_count }}</span>
+            <span class="inv-badge bg-danger text-white ms-1">Hết: {{ out_of_stock_count }}</span>
+          </div>
+        </div>
+        <div class="card-body"><canvas id="inventoryChart" height="150"></canvas></div>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="card chart-card shadow-sm h-100">
+        <div class="card-header py-3">
+          <h5 class="mb-0 fw-bold"><i class="bi bi-pie-chart text-danger"></i> Đơn hàng theo trạng thái</h5>
+        </div>
+        <div class="card-body d-flex align-items-center justify-content-center">
+          <div style="max-width:350px;width:100%"><canvas id="statusChart"></canvas></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card chart-card shadow-sm mb-4">
+    <div class="card-header py-3">
+      <h5 class="mb-0 fw-bold"><i class="bi bi-trophy text-warning"></i> Top 10 sản phẩm bán chạy</h5>
+    </div>
+    <div class="card-body">
+      <div class="row">
+        <div class="col-lg-7"><canvas id="topProductChart" height="150"></canvas></div>
+        <div class="col-lg-5">
+          <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th>#</th>
+                  <th>Sản phẩm</th>
+                  <th class="text-end">Đã bán</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for product in top_products %}
+                <tr>
+                  <td><strong>{{ forloop.counter }}</strong></td>
+                  <td>{{ product.name|truncatewords:4 }}<br><small class="text-muted">{{ product.category.name }}</small></td>
+                  <td class="text-end"><span class="badge bg-success">{{ product.total_sold }}</span></td>
+                </tr>
+                {% empty %}
+                <tr>
+                  <td colspan="3" class="text-center text-muted py-3">Chưa có dữ liệu</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+  function formatVND(v) { if (v >= 1e6) return (v / 1e6).toFixed(1) + "M"; if (v >= 1e3) return (v / 1e3).toFixed(0) + "K"; return v.toString(); }
+
+  const dailyLabels = {{ daily_labels| safe }};
+  const dailyRevenue = {{ daily_revenue| safe }};
+  const weeklyLabels = {{ weekly_labels| safe }};
+  const weeklyRevenue = {{ weekly_revenue| safe }};
+  const monthlyLabels = {{ monthly_labels| safe }};
+  const monthlyRevenue = {{ monthly_revenue| safe }};
+  const quarterlyLabels = {{ quarterly_labels| safe }};
+  const quarterlyRevenue = {{ quarterly_revenue| safe }};
+  const yearlyLabels = {{ yearly_labels| safe }};
+  const yearlyRevenue = {{ yearly_revenue| safe }};
+  const inventoryLabels = {{ inventory_labels| safe }};
+  const inventoryData = {{ inventory_data| safe }};
+  const topProductLabels = {{ top_product_labels| safe }};
+  const topProductData = {{ top_product_data| safe }};
+  const statusLabels = {{ status_labels| safe }};
+  const statusCounts = {{ status_counts| safe }};
+  const statusColors = {{ status_colors| safe }};
+
+  const lineOpts = { responsive: true, maintainAspectRatio: true, plugins: { legend: { display: true, position: "top" }, tooltip: { callbacks: { label: function (c) { return c.dataset.label + ": " + new Intl.NumberFormat("vi-VN").format(c.parsed.y) + " đ"; } } } }, scales: { y: { beginAtZero: true, ticks: { callback: function (v) { return formatVND(v); } } }, x: { grid: { display: false } } } };
+
+  new Chart(document.getElementById("dailyChart"), { type: "line", data: { labels: dailyLabels, datasets: [{ label: "Doanh thu theo ngày", data: dailyRevenue, borderColor: "#667eea", backgroundColor: "rgba(102,126,234,0.1)", borderWidth: 2, fill: true, tension: 0.4, pointRadius: 3, pointBackgroundColor: "#667eea" }] }, options: lineOpts });
+
+  new Chart(document.getElementById("weeklyChart"), { type: "line", data: { labels: weeklyLabels, datasets: [{ label: "Doanh thu theo tuần", data: weeklyRevenue, borderColor: "#f093fb", backgroundColor: "rgba(240,147,251,0.1)", borderWidth: 2, fill: true, tension: 0.4, pointRadius: 4, pointBackgroundColor: "#f093fb" }] }, options: lineOpts });
+
+  new Chart(document.getElementById("monthlyChart"), { type: "line", data: { labels: monthlyLabels, datasets: [{ label: "Doanh thu theo tháng", data: monthlyRevenue, borderColor: "#28A745", backgroundColor: "rgba(40,167,69,0.1)", borderWidth: 2, fill: true, tension: 0.4, pointRadius: 5, pointBackgroundColor: "#28A745", pointBorderColor: "#fff", pointBorderWidth: 2 }] }, options: lineOpts });
+
+  new Chart(document.getElementById("quarterlyChart"), { type: "bar", data: { labels: quarterlyLabels, datasets: [{ label: "Doanh thu theo quý", data: quarterlyRevenue, backgroundColor: ["#667eea", "#764ba2", "#f093fb", "#4facfe", "#00f2fe", "#43e97b", "#fa709a", "#fee140"], borderRadius: 8, borderSkipped: false }] }, options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (c) { return new Intl.NumberFormat("vi-VN").format(c.parsed.y) + " đ"; } } } }, scales: { y: { beginAtZero: true, ticks: { callback: function (v) { return formatVND(v); } } }, x: { grid: { display: false } } } } });
+
+  new Chart(document.getElementById("yearlyChart"), { type: "bar", data: { labels: yearlyLabels, datasets: [{ label: "Doanh thu theo năm", data: yearlyRevenue, backgroundColor: ["#20c997", "#17a2b8", "#007bff", "#6f42c1", "#e83e8c"], borderRadius: 8, borderSkipped: false }] }, options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (c) { return new Intl.NumberFormat("vi-VN").format(c.parsed.y) + " đ"; } } } }, scales: { y: { beginAtZero: true, ticks: { callback: function (v) { return formatVND(v); } } }, x: { grid: { display: false } } } } });
+
+  var customEl = document.getElementById("customChart");
+  if (customEl) {
+    var cl = {{ custom_labels|safe }};
+  var cr = {{ custom_revenue| safe }};
+  new Chart(customEl, { type: "line", data: { labels: cl, datasets: [{ label: "Doanh thu", data: cr, borderColor: "#e83e8c", backgroundColor: "rgba(232,62,140,0.1)", borderWidth: 2, fill: true, tension: 0.3, pointRadius: 4, pointBackgroundColor: "#e83e8c" }] }, options: lineOpts });
+}
+
+  new Chart(document.getElementById("inventoryChart"), { type: "bar", data: { labels: inventoryLabels, datasets: [{ label: "Số lượng tồn", data: inventoryData, backgroundColor: inventoryData.map(function (v) { return v === 0 ? "#dc3545" : v < 10 ? "#ffc107" : "#28a745"; }), borderRadius: 4, borderSkipped: false }] }, options: { indexAxis: "y", responsive: true, maintainAspectRatio: true, plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true, grid: { display: false } }, y: { ticks: { font: { size: 11 } } } } } });
+
+  new Chart(document.getElementById("topProductChart"), { type: "bar", data: { labels: topProductLabels, datasets: [{ label: "Số lượng bán", data: topProductData, backgroundColor: ["#667eea", "#764ba2", "#f093fb", "#4facfe", "#00f2fe", "#43e97b", "#fa709a", "#fee140", "#a18cd1", "#fbc2eb"], borderRadius: 4, borderSkipped: false }] }, options: { indexAxis: "y", responsive: true, maintainAspectRatio: true, plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true, ticks: { stepSize: 1 }, grid: { display: false } }, y: { ticks: { font: { size: 11 } } } } } });
+
+  new Chart(document.getElementById("statusChart"), { type: "doughnut", data: { labels: statusLabels, datasets: [{ data: statusCounts, backgroundColor: statusColors, borderWidth: 3, borderColor: "#fff", hoverOffset: 8 }] }, options: { responsive: true, maintainAspectRatio: true, cutout: "55%", plugins: { legend: { position: "bottom", labels: { padding: 15, usePointStyle: true } } } } });
+
+</script>
+{% endblock %}

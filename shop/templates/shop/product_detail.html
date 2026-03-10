@@ -1,0 +1,242 @@
+{% extends 'shop/base.html' %}
+{% load static %}
+{% load humanize %}
+{% load price_filters %}
+
+{% block title %}{{ product.name }} - Fashion Shop{% endblock %}
+
+{% block content %}
+<div class="container" style="padding-top: 2rem; padding-bottom: 3rem;">
+
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" style="margin-bottom: 1.5rem;">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item">
+                <a href="{% url 'shop:home' %}">Trang chủ</a>
+            </li>
+            <li class="breadcrumb-item">
+                <a href="{% url 'shop:product_list' %}">Sản phẩm</a>
+            </li>
+            <li class="breadcrumb-item active">
+                {{ product.name }}
+            </li>
+        </ol>
+    </nav>
+
+    <div class="row g-4 g-lg-5">
+        <!-- Ảnh sản phẩm -->
+        <div class="col-md-6 mb-4">
+            <div class="card product-detail-image border-0 shadow">
+                {% if product.image %}
+                <img id="product-image" src="{{ product.image.url }}" class="card-img-top" alt="{{ product.name }}"
+                    style="max-height:600px;object-fit:contain; background: #f8f8f8; padding: 1rem;">
+                {% else %}
+                <img id="product-image" src="https://via.placeholder.com/600x600" class="card-img-top" alt="{{ product.name }}">
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Thông tin -->
+        <div class="col-md-6 product-detail-info">
+            <span class="badge category-badge mb-3" style="font-size: 0.78rem;">
+                {{ product.category.name }}
+            </span>
+
+            <h2 class="product-detail-title mb-3">{{ product.name }}</h2>
+
+            <h3 class="product-detail-price mb-4">
+                {{ product.price|vnd_format }} đ
+            </h3>
+
+            <hr style="border-color: var(--clr-border);">
+
+            <!-- Mô tả -->
+            <div style="margin-bottom: 1.5rem;">
+                <h6 class="fw-bold mb-2"
+                    style="font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--clr-text-muted);">
+                    <i class="bi bi-info-circle"></i> Mô tả sản phẩm
+                </h6>
+                <div style="color: var(--clr-text-muted); font-size: 0.92rem; line-height: 1.8;">
+                    {{ product.description|linebreaks }}
+                </div>
+            </div>
+
+            <hr style="border-color: var(--clr-border);">
+
+            {# ================= LOGIC VARIANT ================= #}
+            {% if variants %}
+
+            {% if not user.is_staff and not user.is_superuser %}
+            {# ============ USER ============ #}
+
+            <form method="post" action="{% url 'shop:add_to_cart' product.pk %}">
+                {% csrf_token %}
+
+                <!-- Size -->
+                {% if available_sizes %}
+                <div class="mb-4">
+                    <h6 class="fw-bold"
+                        style="font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.8rem;">
+                        Chọn size:</h6>
+                    <div class="btn-group flex-wrap" role="group" style="gap: 6px;">
+                        {% for size in available_sizes %}
+                        <input type="radio" class="btn-check" name="size" id="size{{ size }}" value="{{ size }}"
+                            required>
+                        <label class="btn btn-outline-primary" for="size{{ size }}">
+                            {{ size|upper }}
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Màu -->
+                {% if available_colors %}
+                <div class="mb-4">
+                    <h6 class="fw-bold"
+                        style="font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.8rem;">
+                        Chọn màu:</h6>
+                    <div class="btn-group flex-wrap" role="group" style="gap: 6px;">
+                        {% for variant in variants %}
+                        {% if variant.color %}
+                        <input type="radio" class="btn-check color-radio" name="color" id="color{{ variant.color }}{{ variant.id }}" value="{{ variant.color }}"
+                            data-image="{% if variant.image %}{{ variant.image.url }}{% elif product.image %}{{ product.image.url }}{% endif %}"
+                            required>
+                        <label class="btn btn-outline-primary" for="color{{ variant.color }}{{ variant.id }}">
+                            {{ variant.get_color_display }}
+                        </label>
+                        {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Số lượng -->
+                <div class="mb-4">
+                    <label class="fw-bold"
+                        style="font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.5rem; display: block;">Số
+                        lượng:</label>
+                    <input type="number" class="form-control" name="quantity" value="1" min="1"
+                        style="max-width:130px; border-radius: var(--radius-sm); border: 2px solid var(--clr-border); font-weight: 600;">
+                </div>
+
+                <div class="d-grid gap-2" style="margin-top: 1.5rem;">
+                    <button type="submit" class="btn btn-add-cart btn-lg">
+                        <i class="bi bi-cart-plus"></i> Thêm vào giỏ hàng
+                    </button>
+                    <a href="{% url 'shop:product_list' %}" class="btn btn-outline-secondary"
+                        style="border-radius: var(--radius-sm);">
+                        <i class="bi bi-arrow-left"></i> Quay lại danh sách
+                    </a>
+                </div>
+            </form>
+
+            {% else %}
+            {# ============ ADMIN ============ #}
+
+            <div class="alert alert-warning" style="border-radius: var(--radius-sm);">
+                <strong>Chế độ quản trị:</strong>
+                Tài khoản admin không thực hiện mua hàng.
+            </div>
+
+            <div class="alert alert-info" style="border-radius: var(--radius-sm);">
+                <strong>Tình trạng kho:</strong>
+                <ul class="mb-0" style="margin-top: 0.5rem;">
+                    {% for variant in variants %}
+                    <li>
+                        {% if variant.size %}Size {{ variant.size }}{% endif %}
+                        {% if variant.color %} - {{ variant.get_color_display }}{% endif %}
+                        : Còn {{ variant.stock }}
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+
+            <a href="{% url 'shop:admin_statistics' %}" class="btn btn-primary"
+                style="border-radius: var(--radius-sm);">
+                <i class="bi bi-bar-chart"></i> Xem thống kê
+            </a>
+
+            {% endif %}
+
+            {% else %}
+            {# ============ KHÔNG CÓ VARIANT ============ #}
+
+            <div class="alert alert-warning" style="border-radius: var(--radius-sm);">
+                <i class="bi bi-exclamation-triangle"></i>
+                Sản phẩm này hiện chưa có phiên bản nào.
+            </div>
+
+            <a href="{% url 'shop:product_list' %}" class="btn btn-outline-secondary"
+                style="border-radius: var(--radius-sm);">
+                <i class="bi bi-arrow-left"></i> Quay lại danh sách
+            </a>
+
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+{# ============ SẢN PHẨM LIÊN QUAN ============ #}
+{% if related_products %}
+<section class="related-section py-5">
+    <div class="container">
+        <div class="d-flex justify-content-between align-items-end mb-4">
+            <div>
+                <div class="section-label" style="text-align: left;">Gợi ý</div>
+                <h4 class="fw-bold mb-0" style="font-family: var(--font-heading);">
+                    Sản phẩm liên quan
+                </h4>
+            </div>
+        </div>
+
+        <div class="row g-4">
+            {% for product in related_products %}
+            <div class="col-6 col-md-3">
+                <div class="card product-card border-0 shadow-sm h-100">
+                    <a href="{% url 'shop:product_detail' product.pk %}">
+                        <div class="product-img-wrapper overflow-hidden">
+                            {% if product.image %}
+                            <img src="{{ product.image.url }}" class="card-img-top product-img" style="height:220px;">
+                            {% else %}
+                            <img src="https://via.placeholder.com/300x200" class="card-img-top product-img"
+                                style="height:220px;">
+                            {% endif %}
+                        </div>
+                    </a>
+                    <div class="card-body">
+                        <h6 class="fw-bold" style="font-size: 0.9rem;">
+                            <a href="{% url 'shop:product_detail' product.pk %}" class="text-decoration-none text-dark">
+                                {{ product.name|truncatewords:5 }}
+                            </a>
+                        </h6>
+                        <p class="price" style="font-size: 1rem;">
+                            {{ product.price|vnd_format }} đ
+                        </p>
+                        <a href="{% url 'shop:product_detail' product.pk %}" class="btn btn-sm btn-primary w-100">
+                            Xem chi tiết
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+{% endif %}
+
+{% block extra_js %}
+<script>
+// Đổi ảnh sản phẩm khi chọn màu
+document.querySelectorAll('.color-radio').forEach(function(radio) {
+    radio.addEventListener('change', function() {
+        var img = this.dataset.image;
+        if (img) {
+            document.getElementById('product-image').src = img;
+        }
+    });
+});
+</script>
+{% endblock %}
+
+{% endblock %}

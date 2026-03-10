@@ -1,0 +1,318 @@
+{% extends 'shop/base.html' %}
+{% load static %}
+{% load humanize %}
+{% load price_filters %}
+
+{% block title %}Trang chủ - MC Shop{% endblock %}
+
+{% block content %}
+<!-- ===== HERO CAROUSEL SLIDER ===== -->
+<div id="heroCarousel" class="carousel slide hero-carousel" data-bs-ride="carousel" data-bs-interval="4000">
+    <!-- Indicators -->
+    <div class="carousel-indicators">
+        <button type="button" data-bs-target="#heroCarousel" data-bs-slide-to="0" class="active"></button>
+        <button type="button" data-bs-target="#heroCarousel" data-bs-slide-to="1"></button>
+        <button type="button" data-bs-target="#heroCarousel" data-bs-slide-to="2"></button>
+    </div>
+
+    <!-- Slides -->
+    <div class="carousel-inner">
+        <!-- Slide 1: New Collection -->
+        <div class="carousel-item active"
+            style="background-image: url('{% static 'shop/images/banners/banner1.png' %}');">
+            <div class="carousel-overlay">
+                <div class="container">
+                    <div class="carousel-caption-custom">
+                        <span class="carousel-badge"><i class="bi bi-stars"></i> NEW ARRIVAL</span>
+                        <h1 class="carousel-title">New Fashion<br><span>Collection 2025</span></h1>
+                        <p class="carousel-desc">Khám phá bộ sưu tập mới nhất với thiết kế độc đáo, chất liệu cao cấp.
+                            Nâng tầm phong cách của bạn.</p>
+                        <a href="{% url 'shop:product_list' %}" class="btn-hero">
+                            <i class="bi bi-bag-check"></i> Mua sắm ngay
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 2: Sale -->
+        <div class="carousel-item" style="background-image: url('{% static 'shop/images/banners/banner2.png' %}');">
+            <div class="carousel-overlay">
+                <div class="container">
+                    <div class="carousel-caption-custom">
+                        <span class="carousel-badge"><i class="bi bi-lightning-charge-fill"></i> FLASH SALE</span>
+                        <h1 class="carousel-title">Sale Up To<br><span>50% OFF</span></h1>
+                        <p class="carousel-desc">Ưu đãi cực sốc cho mùa hè 2025. Nhanh tay sở hữu những item yêu thích
+                            với giá hời!</p>
+                        <a href="{% url 'shop:product_list' %}" class="btn-hero">
+                            <i class="bi bi-bag-check"></i> Mua sắm ngay
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 3: Modern Style -->
+        <div class="carousel-item" style="background-image: url('{% static 'shop/images/banners/banner3.png' %}');">
+            <div class="carousel-overlay">
+                <div class="container">
+                    <div class="carousel-caption-custom">
+                        <span class="carousel-badge"><i class="bi bi-fire"></i> TRENDING</span>
+                        <h1 class="carousel-title">Modern Fashion<br><span>Style</span></h1>
+                        <p class="carousel-desc">Phong cách hiện đại, thanh lịch và cá tính. Định nghĩa lại xu hướng
+                            thời trang.</p>
+                        <a href="{% url 'shop:product_list' %}" class="btn-hero">
+                            <i class="bi bi-bag-check"></i> Mua sắm ngay
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Controls -->
+    <button class="carousel-control-prev" type="button" data-bs-target="#heroCarousel" data-bs-slide="prev">
+        <span class="carousel-control-prev-icon"></span>
+    </button>
+    <button class="carousel-control-next" type="button" data-bs-target="#heroCarousel" data-bs-slide="next">
+        <span class="carousel-control-next-icon"></span>
+    </button>
+</div>
+
+<!-- ===== TRUST STRIP ===== -->
+<section class="trust-strip">
+    <div class="container">
+        <div class="row g-3">
+            <div class="col-6 col-md-3">
+                <div class="trust-item">
+                    <i class="bi bi-truck"></i>
+                    <span>Miễn phí vận chuyển</span>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="trust-item">
+                    <i class="bi bi-shield-check"></i>
+                    <span>Cam kết chính hãng</span>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="trust-item">
+                    <i class="bi bi-arrow-repeat"></i>
+                    <span>Đổi trả 30 ngày</span>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="trust-item">
+                    <i class="bi bi-headset"></i>
+                    <span>Hỗ trợ 24/7</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ===== DANH MỤC SẢN PHẨM ===== -->
+<section style="background: var(--bg-section-alt); padding: 3.5rem 0;">
+    <div class="container">
+        <div class="section-header">
+            <span class="section-label">Khám phá</span>
+            <h2>Danh mục sản phẩm</h2>
+            <p>Tìm kiếm trang phục phù hợp với phong cách của bạn</p>
+        </div>
+
+        {% for parent in parent_categories %}
+        <div class="mb-4">
+            <h5 class="mb-3"
+                style="font-weight: 700; font-size: 1rem; letter-spacing: 0.5px; text-transform: uppercase; color: var(--accent);">
+                <i class="bi bi-caret-right-fill"></i> {{ parent.name }}
+            </h5>
+            <div class="row g-3">
+                <div class="col-6 col-md-3">
+                    <a href="{% url 'shop:product_list' %}?category={{ parent.id }}" class="text-decoration-none">
+                        <div class="card category-card text-center h-100">
+                            <div class="card-body">
+                                <i class="bi bi-grid-3x3 display-4"></i>
+                                <h5 class="card-title mt-3">Tất cả {{ parent.name }}</h5>
+                                <small class="text-muted">{{ parent.get_all_products.count }} sản phẩm</small>
+                            </div>
+                        </div>
+                    </a>
+                </div>
+                {% for category in parent.subcategories.all %}
+                <div class="col-6 col-md-3">
+                    <a href="{% url 'shop:product_list' %}?category={{ category.id }}" class="text-decoration-none">
+                        <div class="card category-card text-center h-100">
+                            <div class="card-body">
+                                <i class="bi bi-bag display-4"></i>
+                                <h5 class="card-title mt-3">{{ category.name }}</h5>
+                                <small class="text-muted">{{ category.products.count }} sản phẩm</small>
+                            </div>
+                        </div>
+                    </a>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-12 text-center text-muted">
+            <p>Chưa có danh mục nào.</p>
+        </div>
+        {% endfor %}
+    </div>
+</section>
+
+<!-- ===== 🔥 SẢN PHẨM BÁN CHẠY ===== -->
+<section style="background: #fff; padding: 3.5rem 0;">
+    <div class="container">
+        <div class="section-header">
+            <span class="section-label">🔥 Xu hướng</span>
+            <h2>Sản phẩm bán chạy</h2>
+        </div>
+
+        <div class="row g-4">
+            {% for product in latest_products %}
+            <div class="col-6 col-md-3 fade-in-up">
+                <div class="card product-card border-0">
+                    <a href="{% url 'shop:product_detail' product.pk %}">
+                        <div class="product-img-wrapper">
+                            {% if forloop.first %}
+                            <span class="product-badge badge-hot">HOT</span>
+                            {% elif forloop.counter == 2 %}
+                            <span class="product-badge badge-new">NEW</span>
+                            {% endif %}
+                            {% if product.image %}
+                            <img src="{{ product.image.url }}" class="card-img-top product-img"
+                                alt="{{ product.name }}">
+                            {% else %}
+                            <img src="https://via.placeholder.com/300x300/eee/999?text={{ product.name|truncatewords:2 }}"
+                                class="card-img-top product-img" alt="{{ product.name }}">
+                            {% endif %}
+                        </div>
+                    </a>
+                    <div class="card-body">
+                        <span class="badge category-badge mb-2">{{ product.category.name }}</span>
+                        <h5 class="card-title">
+                            <a href="{% url 'shop:product_detail' product.pk %}">{{ product.name|truncatewords:5 }}</a>
+                        </h5>
+                        <p class="price mb-2">{{ product.price|vnd_format }} đ</p>
+                        <a href="{% url 'shop:product_detail' product.pk %}" class="btn btn-primary btn-sm w-100">
+                            <i class="bi bi-eye"></i> Xem chi tiết
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="col-12 text-center">
+                <div class="alert alert-info"><i class="bi bi-info-circle"></i> Hiện tại chưa có sản phẩm nào.</div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+
+<!-- ===== PROMO BANNER 1: SUMMER COLLECTION ===== -->
+<section style="padding: 2rem 0;">
+    <div class="container">
+        <div class="promo-banner" style="background-image: url('{% static 'shop/images/banners/promo1.png' %}');">
+            <div class="promo-overlay"></div>
+            <div class="promo-content">
+                <div class="promo-label">Summer Collection</div>
+                <h3 class="promo-title">Bộ sưu tập<br>Hè 2025</h3>
+                <p class="promo-desc">Thoải mái, năng động với BST mùa hè mới nhất</p>
+                <a href="{% url 'shop:product_list' %}" class="btn-promo">
+                    <i class="bi bi-arrow-right-circle"></i> Xem ngay
+                </a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ===== SẢN PHẨM MỚI NHẤT ===== -->
+<section style="background: var(--bg-section-alt); padding: 3.5rem 0;">
+    <div class="container">
+        <div class="d-flex justify-content-between align-items-end mb-4">
+            <div>
+                <span class="section-label" style="text-align: left; display: block;">Cập nhật</span>
+                <h2
+                    style="font-family: 'Playfair Display', serif; font-size: 1.8rem; font-weight: 800; margin-bottom: 0;">
+                    Sản phẩm mới nhất</h2>
+            </div>
+            <a href="{% url 'shop:product_list' %}" class="btn btn-outline-primary btn-sm"
+                style="padding: 0.5rem 1.5rem;">
+                Xem tất cả <i class="bi bi-arrow-right"></i>
+            </a>
+        </div>
+
+        <div class="row g-4">
+            {% for product in latest_products %}
+            <div class="col-6 col-md-3 fade-in-up">
+                <div class="card product-card border-0">
+                    <a href="{% url 'shop:product_detail' product.pk %}">
+                        <div class="product-img-wrapper">
+                            {% if forloop.counter == 3 %}
+                            <span class="product-badge badge-sale">SALE</span>
+                            {% endif %}
+                            {% if product.image %}
+                            <img src="{{ product.image.url }}" class="card-img-top product-img"
+                                alt="{{ product.name }}">
+                            {% else %}
+                            <img src="https://via.placeholder.com/300x300/eee/999?text={{ product.name|truncatewords:2 }}"
+                                class="card-img-top product-img" alt="{{ product.name }}">
+                            {% endif %}
+                        </div>
+                    </a>
+                    <div class="card-body">
+                        <span class="badge category-badge mb-2">{{ product.category.name }}</span>
+                        <h5 class="card-title">
+                            <a href="{% url 'shop:product_detail' product.pk %}">{{ product.name|truncatewords:5 }}</a>
+                        </h5>
+                        <p class="price mb-2">{{ product.price|vnd_format }} đ</p>
+                        <a href="{% url 'shop:product_detail' product.pk %}" class="btn btn-primary btn-sm w-100">
+                            <i class="bi bi-cart-plus"></i> Thêm vào giỏ
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="col-12 text-center">
+                <div class="alert alert-info"><i class="bi bi-info-circle"></i> Hiện tại chưa có sản phẩm nào.</div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+
+<!-- ===== PROMO BANNER 2: DISCOUNT ===== -->
+<section style="padding: 2rem 0;">
+    <div class="container">
+        <div class="promo-banner" style="background-image: url('{% static 'shop/images/banners/promo2.png' %}');">
+            <div class="promo-overlay"></div>
+            <div class="promo-content">
+                <div class="promo-label">Special Offer</div>
+                <h3 class="promo-title">Ưu đãi đến<br>30% OFF</h3>
+                <p class="promo-desc">Sản phẩm chất lượng với giá cả phải chăng</p>
+                <a href="{% url 'shop:product_list' %}" class="btn-promo">
+                    <i class="bi bi-arrow-right-circle"></i> Mua ngay
+                </a>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Scroll fade-in animation
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach((entry, index) => {
+            if (entry.isIntersecting) {
+                setTimeout(() => {
+                    entry.target.classList.add('visible');
+                }, index * 80);
+            }
+        });
+    }, { threshold: 0.1 });
+
+    document.querySelectorAll('.fade-in-up').forEach(el => observer.observe(el));
+</script>
+{% endblock %}

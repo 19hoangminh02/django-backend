@@ -1,0 +1,166 @@
+{% extends 'shop/base.html' %}
+{% load static %}
+{% load humanize %}
+{% load price_filters %}
+
+{% block title %}Danh sách sản phẩm - Fashion Shop{% endblock %}
+
+{% block content %}
+<!-- ===== PAGE HEADER ===== -->
+<div class="page-header">
+    <div class="container">
+        <div class="row align-items-center">
+            <div class="col-md-8">
+                <h2>
+                    <i class="bi bi-grid"></i>
+                    {% if selected_category %}{{ selected_category.name }}{% else %}Tất cả sản phẩm{% endif %}
+                </h2>
+                <p>Tìm thấy {{ products.count }} sản phẩm</p>
+            </div>
+            <div class="col-md-4">
+                <form method="get" action="{% url 'shop:product_list' %}" class="search-box">
+                    <div class="input-group">
+                        <input type="text" name="search" class="form-control" placeholder="Tìm kiếm sản phẩm..."
+                            value="{{ search_query|default:'' }}"
+                            style="background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.2); color: #fff;">
+                        <button class="btn btn-light" type="submit"
+                            style="border-radius: 0 var(--radius-sm) var(--radius-sm) 0;">
+                            <i class="bi bi-search"></i>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container" style="padding-bottom: 3rem;">
+    <div class="row">
+        <!-- Sidebar - Bộ lọc -->
+        <div class="col-md-3 mb-4">
+            <div class="card filter-card shadow-sm">
+                <div class="card-header bg-dark text-white">
+                    <i class="bi bi-funnel"></i> Bộ lọc
+                </div>
+                <div class="card-body">
+                    <!-- Danh mục -->
+                    <h6 class="fw-bold mb-3">Danh mục</h6>
+
+                    {% for parent in parent_categories %}
+                    <div class="mb-3">
+                        <h6
+                            style="font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--clr-accent); margin-bottom: 0.5rem;">
+                            <i class="bi bi-caret-right-fill"></i> {{ parent.name }}
+                        </h6>
+                        <div class="list-group mb-2">
+                            <!-- Tất cả -->
+                            <a href="{% url 'shop:product_list' %}?category={{ parent.id }}"
+                                class="list-group-item list-group-item-action {% if selected_category == parent %}active{% endif %}">
+                                Tất cả {{ parent.name }}
+                                <span class="badge bg-secondary float-end"
+                                    style="border-radius: 50px; font-size: 0.7rem;">{{ parent.get_all_products.count}}
+                                </span>
+                            </a>
+
+                            <!-- Danh mục con -->
+                            {% for category in parent.subcategories.all %}
+                            <a href="{% url 'shop:product_list' %}?category={{ category.id }}"
+                                class="list-group-item list-group-item-action {% if selected_category == category %}active{% endif %}">
+                                {{ category.name }}
+                                <span class="badge bg-secondary float-end"
+                                    style="border-radius: 50px; font-size: 0.7rem;">{{ category.products.count }}</span>
+                            </a>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endfor %}
+
+                    <hr>
+
+                    <!-- Sắp xếp -->
+                    <h6 class="fw-bold mb-3">Sắp xếp</h6>
+                    <select class="form-select" id="sort-select">
+                        <option value="-created_at" {% if sort_by == '-created_at' %}selected{% endif %}>Mới nhất</option>
+                        <option value="price" {% if sort_by == 'price' %}selected{% endif %}>Giá tăng dần</option>
+                        <option value="-price" {% if sort_by == '-price' %}selected{% endif %}>Giá giảm dần</option>
+                        <option value="name" {% if sort_by == 'name' %}selected{% endif %}>Tên A-Z</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Danh sách sản phẩm -->
+        <div class="col-md-9">
+            <div class="row g-4">
+                {% for product in products %}
+                <div class="col-md-4 col-6">
+                    <div class="card product-card border-0 shadow-sm h-100">
+                        <a href="{% url 'shop:product_detail' product.pk %}">
+                            <div class="product-img-wrapper overflow-hidden">
+                                {% if product.image %}
+                                <img src="{{ product.image.url }}" class="card-img-top product-img"
+                                    alt="{{ product.name }}">
+                                {% else %}
+                                <img src="https://via.placeholder.com/300x280/667eea/ffffff?text={{ product.name }}"
+                                    class="card-img-top product-img" alt="{{ product.name }}">
+                                {% endif %}
+                            </div>
+                        </a>
+
+                        <div class="card-body">
+                            <span class="badge category-badge mb-2">
+                                {{ product.category.name }}
+                            </span>
+
+                            <h5 class="card-title">
+                                <a href="{% url 'shop:product_detail' product.pk %}"
+                                    class="text-decoration-none text-dark">
+                                    {{ product.name }}
+                                </a>
+                            </h5>
+
+                            <p class="price mb-3">{{ product.price|vnd_format }} đ</p>
+
+                            {% if not user.is_staff and not user.is_superuser %}
+                            <!-- NÚT CHO USER THƯỜNG - CÓ THÊM VÀO GIỎ -->
+                            <div class="d-grid gap-2">
+                                <a href="{% url 'shop:product_detail' product.pk %}" class="btn btn-primary btn-sm">
+                                    <i class="bi bi-cart-plus"></i> Thêm vào giỏ
+                                </a>
+                            </div>
+                            {% else %}
+                            <!-- NÚT CHO ADMIN - CHỈ XEM CHI TIẾT -->
+                            <div class="d-grid gap-2">
+                                <a href="{% url 'shop:product_detail' product.pk %}"
+                                    class="btn btn-outline-secondary btn-sm">
+                                    <i class="bi bi-eye"></i> Xem chi tiết
+                                </a>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="col-12">
+                    <div class="alert alert-warning text-center">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        Không tìm thấy sản phẩm nào phù hợp.
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.getElementById('sort-select').addEventListener('change', function () {
+        var url = '?sort=' + this.value;
+        {% if selected_category %} url += '&category={{ selected_category.id }}'; {% endif %}
+        {% if search_query %} url += '&search={{ search_query }}'; {% endif %}
+        window.location.href = url;
+    });
+</script>
+{% endblock %}

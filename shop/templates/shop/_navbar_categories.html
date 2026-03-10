@@ -1,0 +1,32 @@
+<!-- "Tất cả sản phẩm" banner -->
+<div class="mega-dropdown-header">
+    <a href="{% url 'shop:product_list' %}" class="mega-dropdown-all">
+        <i class="bi bi-grid-3x3-gap"></i> Tất cả sản phẩm
+    </a>
+</div>
+
+<!-- Multi-column category grid -->
+<div class="mega-dropdown-body">
+    <div class="row g-0">
+        {% for parent in parents %}
+        <div class="col-12 col-lg mega-dropdown-col">
+            <!-- Column header -->
+            <div class="mega-dropdown-col-header">
+                <a href="{% url 'shop:product_list' %}?category={{ parent.id }}">
+                    {{ parent.name|upper }}
+                </a>
+            </div>
+            <!-- Subcategory items -->
+            <ul class="mega-dropdown-list">
+                {% for category in parent.subcategories.all %}
+                <li>
+                    <a href="{% url 'shop:product_list' %}?category={{ category.id }}">
+                        {{ category.name }}
+                    </a>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endfor %}
+    </div>
+</div>
