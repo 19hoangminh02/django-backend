@@ -241,8 +241,8 @@ def add_to_cart(request, product_id):
         product = get_object_or_404(Product, pk=product_id, is_active=True)
         
         # Lấy variant (size + màu) từ form
-        size = request.POST.get('size')
-        color = request.POST.get('color')
+        size = request.POST.get('size', '').strip() or None
+        color = request.POST.get('color', '').strip() or None
         quantity = int(request.POST.get('quantity', 1))
         
         # Tìm variant phù hợp

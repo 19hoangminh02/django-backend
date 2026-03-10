@@ -1,5 +1,7 @@
 from django.contrib import admin
 from django.utils.html import format_html
+from django.forms import BaseInlineFormSet
+from django.core.exceptions import ValidationError
 from .models import (
     Category, 
     Product, 
@@ -28,10 +30,28 @@ class CategoryAdmin(admin.ModelAdmin):
 
 
 # ===== ADMIN CHO PRODUCT VARIANT (Inline) =====
+class ProductVariantInlineFormSet(BaseInlineFormSet):
+    def clean(self):
+        super().clean()
+        seen = set()
+        for form in self.forms:
+            if form.cleaned_data and not form.cleaned_data.get('DELETE', False):
+                size = form.cleaned_data.get('size')
+                color = form.cleaned_data.get('color')
+                key = (size, color)
+                if key in seen:
+                    raise ValidationError(
+                        f'Biến thể trùng lặp: Size={size}, Màu={color}. '
+                        f'Mỗi tổ hợp size + màu chỉ được phép tồn tại 1 lần.'
+                    )
+                seen.add(key)
+
+
 class ProductVariantInline(admin.TabularInline):
     model = ProductVariant
     extra = 1
     fields = ('size', 'color', 'stock', 'is_available', 'image')
+    formset = ProductVariantInlineFormSet
 
 
 # ===== ADMIN CHO PRODUCT =====
