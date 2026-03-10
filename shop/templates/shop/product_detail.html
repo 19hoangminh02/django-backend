@@ -91,21 +91,19 @@
                 {% endif %}
 
                 <!-- Màu -->
-                {% if available_colors %}
+                {% if unique_colors %}
                 <div class="mb-4">
                     <h6 class="fw-bold"
                         style="font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.8rem;">
                         Chọn màu:</h6>
                     <div class="btn-group flex-wrap" role="group" style="gap: 6px;">
-                        {% for variant in variants %}
-                        {% if variant.color %}
-                        <input type="radio" class="btn-check color-radio" name="color" id="color{{ variant.color }}{{ variant.id }}" value="{{ variant.color }}"
-                            data-image="{% if variant.image %}{{ variant.image.url }}{% elif product.image %}{{ product.image.url }}{% endif %}"
+                        {% for color in unique_colors %}
+                        <input type="radio" class="btn-check color-radio" name="color" id="color_{{ color.code }}" value="{{ color.code }}"
+                            data-image="{{ color.image_url }}"
                             required>
-                        <label class="btn btn-outline-primary" for="color{{ variant.color }}{{ variant.id }}">
-                            {{ variant.get_color_display }}
+                        <label class="btn btn-outline-primary" for="color_{{ color.code }}">
+                            {{ color.display }}
                         </label>
-                        {% endif %}
                         {% endfor %}
                     </div>
                 </div>
@@ -227,15 +225,116 @@
 
 {% block extra_js %}
 <script>
-// Đổi ảnh sản phẩm khi chọn màu
-document.querySelectorAll('.color-radio').forEach(function(radio) {
-    radio.addEventListener('change', function() {
-        var img = this.dataset.image;
-        if (img) {
-            document.getElementById('product-image').src = img;
+(function() {
+    // === Variant data from backend ===
+    var allVariants = {{ variants_json|safe }};
+
+    var colorRadios = document.querySelectorAll('input[name="color"]');
+    var sizeRadios = document.querySelectorAll('input[name="size"]');
+    var productImage = document.getElementById('product-image');
+
+    // === Helpers ===
+    function getSelectedValue(radios) {
+        for (var i = 0; i < radios.length; i++) {
+            if (radios[i].checked) return radios[i].value;
         }
+        return null;
+    }
+
+    function setDisabled(radio, disabled) {
+        var label = document.querySelector('label[for="' + radio.id + '"]');
+        if (disabled) {
+            radio.disabled = true;
+            if (label) {
+                label.classList.add('disabled');
+                label.style.opacity = '0.4';
+                label.style.pointerEvents = 'none';
+            }
+        } else {
+            radio.disabled = false;
+            if (label) {
+                label.classList.remove('disabled');
+                label.style.opacity = '1';
+                label.style.pointerEvents = 'auto';
+            }
+        }
+    }
+
+    // === Filter sizes when a color is selected ===
+    function filterSizes(selectedColor) {
+        if (!selectedColor) {
+            // No color selected — enable all sizes that have at least 1 variant with stock > 0
+            sizeRadios.forEach(function(sr) {
+                var hasStock = allVariants.some(function(v) {
+                    return v.size === sr.value && v.stock > 0;
+                });
+                setDisabled(sr, !hasStock);
+            });
+            return;
+        }
+        sizeRadios.forEach(function(sr) {
+            var hasStock = allVariants.some(function(v) {
+                return v.color === selectedColor && v.size === sr.value && v.stock > 0;
+            });
+            setDisabled(sr, !hasStock);
+            // Uncheck if now disabled
+            if (sr.disabled && sr.checked) {
+                sr.checked = false;
+            }
+        });
+    }
+
+    // === Filter colors when a size is selected ===
+    function filterColors(selectedSize) {
+        if (!selectedSize) {
+            colorRadios.forEach(function(cr) {
+                var hasStock = allVariants.some(function(v) {
+                    return v.color === cr.value && v.stock > 0;
+                });
+                setDisabled(cr, !hasStock);
+            });
+            return;
+        }
+        colorRadios.forEach(function(cr) {
+            var hasStock = allVariants.some(function(v) {
+                return v.size === selectedSize && v.color === cr.value && v.stock > 0;
+            });
+            setDisabled(cr, !hasStock);
+            if (cr.disabled && cr.checked) {
+                cr.checked = false;
+            }
+        });
+    }
+
+    // === Update product image based on selected color ===
+    function updateImage(selectedColor) {
+        if (!productImage) return;
+        var radio = document.querySelector('input[name="color"][value="' + selectedColor + '"]');
+        if (radio && radio.dataset.image) {
+            productImage.src = radio.dataset.image;
+        }
+    }
+
+    // === Event listeners ===
+    colorRadios.forEach(function(radio) {
+        radio.addEventListener('change', function() {
+            var color = this.value;
+            filterSizes(color);
+            updateImage(color);
+        });
     });
-});
+
+    sizeRadios.forEach(function(radio) {
+        radio.addEventListener('change', function() {
+            var size = this.value;
+            filterColors(size);
+        });
+    });
+
+    // === Initial state: enable only options with stock > 0 ===
+    filterSizes(null);
+    filterColors(null);
+})();
 </script>
 {% endblock %}
 

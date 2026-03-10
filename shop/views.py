@@ -117,12 +117,49 @@ def product_detail(request, pk):
         else len(SIZE_ORDER)
     )
     available_colors = [c for c in variants.values_list('color', flat=True).distinct() if c]
-    
+
+    # ===== UNIQUE COLORS (deduplicated, with display name & image) =====
+    color_display_map = dict(ProductVariant.COLOR_CHOICES)
+    seen_colors = set()
+    unique_colors = []
+    for v in variants:
+        if v.color and v.color not in seen_colors:
+            seen_colors.add(v.color)
+            img_url = ''
+            if v.image:
+                img_url = v.image.url
+            elif product.image:
+                img_url = product.image.url
+            unique_colors.append({
+                'code': v.color,
+                'display': color_display_map.get(v.color, v.color),
+                'image_url': img_url,
+            })
+
+    # ===== VARIANTS JSON for frontend dynamic filtering =====
+    variants_data = []
+    for v in variants:
+        img_url = ''
+        if v.image:
+            img_url = v.image.url
+        elif product.image:
+            img_url = product.image.url
+        variants_data.append({
+            'id': v.id,
+            'color': v.color or '',
+            'size': v.size or '',
+            'stock': v.stock,
+            'image_url': img_url,
+        })
+    variants_json = json.dumps(variants_data)
+
     context = {
         'product': product,
         'variants': variants,
         'available_sizes': available_sizes,
         'available_colors': available_colors,
+        'unique_colors': unique_colors,
+        'variants_json': variants_json,
         'related_products': related_products,
     }
     return render(request, 'shop/product_detail.html', context)
