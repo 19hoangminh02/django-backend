@@ -1036,88 +1036,148 @@ def remove_from_wishlist(request, product_id):
 
 
 # ===== CHATBOT AI (Google Gemini) =====
-import google.generativeai as genai
+import logging
+import traceback
+
+logger = logging.getLogger(__name__)
+
+try:
+    import google.generativeai as genai
+    # Cấu hình Gemini API key 1 lần khi module load
+    genai.configure(api_key=settings.GEMINI_API_KEY)
+    GEMINI_AVAILABLE = True
+    logger.info("✅ Google Generative AI SDK loaded successfully")
+except ImportError as e:
+    GEMINI_AVAILABLE = False
+    logger.error(f"❌ google-generativeai not installed: {e}")
+except Exception as e:
+    GEMINI_AVAILABLE = False
+    logger.error(f"❌ Gemini configuration error: {e}")
 
 
 @csrf_exempt
 @require_POST
 def chatbot_api(request):
     """API endpoint cho chatbot AI - sử dụng Google Gemini"""
+
+    # 0) Kiểm tra SDK có sẵn không
+    if not GEMINI_AVAILABLE:
+        logger.error("Chatbot called but google-generativeai is not available")
+        return JsonResponse({
+            'reply': 'Chatbot đang bảo trì, vui lòng thử lại sau! 🔧'
+        }, status=503)
+
     try:
+        # 1) Parse request
         data = json.loads(request.body)
         user_message = data.get('message', '').strip()
         conversation_history = data.get('history', [])
 
+        logger.info(f"[CHATBOT] User message: {user_message[:100]}")
+
         if not user_message:
             return JsonResponse({'reply': 'Bạn chưa nhập tin nhắn!'}, status=400)
 
-        # ===== TRUY VẤN DATABASE ĐỂ LẤY CONTEXT =====
+        # ===== 2) TRUY VẤN DATABASE ĐỂ LẤY CONTEXT =====
 
-        # 1) Lấy tất cả danh mục
-        categories = Category.objects.all()
+        # 2a) Lấy tất cả danh mục
         category_info = ""
-        for cat in categories:
-            if cat.parent:
-                category_info += f"  - {cat.name} (thuộc {cat.parent.name})\n"
-            else:
-                category_info += f"- {cat.name}\n"
-
-        # 2) Tìm sản phẩm liên quan đến câu hỏi
-        search_terms = user_message.lower().split()
-        product_query = Q()
-        for term in search_terms:
-            if len(term) > 2:  # Bỏ qua từ quá ngắn
-                product_query |= Q(name__icontains=term) | Q(description__icontains=term) | Q(category__name__icontains=term)
-
-        matched_products = Product.objects.filter(
-            product_query, is_active=True
-        ).distinct()[:10] if product_query else Product.objects.none()
-
-        product_info = ""
-        if matched_products.exists():
-            for p in matched_products:
-                variants = p.variants.filter(is_available=True)
-                sizes = list(set(v.size for v in variants if v.size))
-                colors = list(set(v.get_color_display() for v in variants if v.color))
-                stock_total = sum(v.stock for v in variants)
-                product_info += (
-                    f"- {p.name} | Giá: {int(p.price):,}đ | "
-                    f"Danh mục: {p.category.name} | "
-                    f"Size: {', '.join(sizes) if sizes else 'N/A'} | "
-                    f"Màu: {', '.join(colors) if colors else 'N/A'} | "
-                    f"Tồn kho: {stock_total} | "
-                    f"Link: /products/{p.id}/\n"
-                )
-
-        # 3) Lấy tất cả sản phẩm (tóm tắt) nếu user hỏi chung
-        all_products_summary = ""
-        general_keywords = ['sản phẩm', 'bán gì', 'có gì', 'shop có', 'danh sách', 'tất cả', 'xem hàng', 'hàng mới']
-        if any(kw in user_message.lower() for kw in general_keywords):
-            all_products = Product.objects.filter(is_active=True).order_by('-created_at')[:20]
-            for p in all_products:
-                all_products_summary += f"- {p.name} | {int(p.price):,}đ | {p.category.name} | Link: /products/{p.id}/\n"
-
-        # 4) Tra cứu đơn hàng (nếu user đã đăng nhập)
-        order_info = ""
-        if request.user.is_authenticated:
-            order_keywords = ['đơn hàng', 'đơn', 'order', 'mua', 'đặt hàng', 'giao hàng', 'theo dõi', 'trạng thái đơn']
-            if any(kw in user_message.lower() for kw in order_keywords):
-                user_orders = Order.objects.filter(user=request.user).order_by('-created_at')[:5]
-                if user_orders.exists():
-                    status_map = dict(Order.STATUS_CHOICES)
-                    for o in user_orders:
-                        items = o.items.all()
-                        items_str = ", ".join([f"{item.product.name} x{item.quantity}" for item in items])
-                        order_info += (
-                            f"- Đơn #{o.id} | Ngày: {o.created_at.strftime('%d/%m/%Y %H:%M')} | "
-                            f"Trạng thái: {status_map.get(o.status, o.status)} | "
-                            f"Tổng: {int(o.total_price):,}đ | "
-                            f"Sản phẩm: {items_str}\n"
-                        )
+        try:
+            categories = Category.objects.all()
+            for cat in categories:
+                if cat.parent:
+                    category_info += f"  - {cat.name} (thuộc {cat.parent.name})\n"
                 else:
-                    order_info = "Khách hàng chưa có đơn hàng nào.\n"
+                    category_info += f"- {cat.name}\n"
+            logger.debug(f"[CHATBOT] Categories loaded: {categories.count()}")
+        except Exception as e:
+            logger.error(f"[CHATBOT] Category query error: {e}")
 
-        # ===== XÂY DỰNG SYSTEM PROMPT =====
+        # 2b) Tìm sản phẩm liên quan đến câu hỏi
+        product_info = ""
+        try:
+            search_terms = user_message.lower().split()
+            product_query = Q()
+            for term in search_terms:
+                if len(term) > 2:
+                    product_query |= (
+                        Q(name__icontains=term) |
+                        Q(description__icontains=term) |
+                        Q(category__name__icontains=term)
+                    )
+
+            if product_query:
+                matched_products = Product.objects.filter(
+                    product_query, is_active=True
+                ).select_related('category').distinct()[:10]
+            else:
+                matched_products = Product.objects.none()
+
+            if matched_products.exists():
+                for p in matched_products:
+                    variants = p.variants.filter(is_available=True)
+                    sizes = list(set(v.size for v in variants if v.size))
+                    colors = list(set(v.get_color_display() for v in variants if v.color))
+                    stock_total = sum(v.stock for v in variants)
+                    product_info += (
+                        f"- {p.name} | Giá: {int(p.price):,}đ | "
+                        f"Danh mục: {p.category.name} | "
+                        f"Size: {', '.join(sizes) if sizes else 'N/A'} | "
+                        f"Màu: {', '.join(colors) if colors else 'N/A'} | "
+                        f"Tồn kho: {stock_total} | "
+                        f"Link: /products/{p.id}/\n"
+                    )
+                logger.debug(f"[CHATBOT] Matched products: {matched_products.count()}")
+        except Exception as e:
+            logger.error(f"[CHATBOT] Product query error: {e}")
+
+        # 2c) Lấy sản phẩm tổng quan nếu hỏi chung
+        all_products_summary = ""
+        try:
+            general_keywords = ['sản phẩm', 'bán gì', 'có gì', 'shop có', 'danh sách',
+                                'tất cả', 'xem hàng', 'hàng mới', 'mới nhất']
+            if any(kw in user_message.lower() for kw in general_keywords):
+                all_products = Product.objects.filter(
+                    is_active=True
+                ).select_related('category').order_by('-created_at')[:20]
+                for p in all_products:
+                    all_products_summary += (
+                        f"- {p.name} | {int(p.price):,}đ | "
+                        f"{p.category.name} | Link: /products/{p.id}/\n"
+                    )
+        except Exception as e:
+            logger.error(f"[CHATBOT] All products query error: {e}")
+
+        # 2d) Tra cứu đơn hàng
+        order_info = ""
+        try:
+            if request.user.is_authenticated:
+                order_keywords = ['đơn hàng', 'đơn', 'order', 'mua', 'đặt hàng',
+                                  'giao hàng', 'theo dõi', 'trạng thái đơn']
+                if any(kw in user_message.lower() for kw in order_keywords):
+                    user_orders = Order.objects.filter(
+                        user=request.user
+                    ).order_by('-created_at')[:5]
+                    if user_orders.exists():
+                        status_map = dict(Order.STATUS_CHOICES)
+                        for o in user_orders:
+                            items = o.items.select_related('product').all()
+                            items_str = ", ".join(
+                                [f"{item.product.name} x{item.quantity}" for item in items]
+                            )
+                            order_info += (
+                                f"- Đơn #{o.id} | "
+                                f"Ngày: {o.created_at.strftime('%d/%m/%Y %H:%M')} | "
+                                f"Trạng thái: {status_map.get(o.status, o.status)} | "
+                                f"Tổng: {int(o.total_price):,}đ | "
+                                f"Sản phẩm: {items_str}\n"
+                            )
+                    else:
+                        order_info = "Khách hàng chưa có đơn hàng nào.\n"
+        except Exception as e:
+            logger.error(f"[CHATBOT] Order query error: {e}")
+
+        # ===== 3) XÂY DỰNG SYSTEM PROMPT =====
         system_prompt = f"""Bạn là trợ lý tư vấn thời trang AI của MC Shop — một shop thời trang trẻ trung, phong cách hiện đại.
 
 THÔNG TIN VỀ SHOP:
@@ -1154,34 +1214,62 @@ QUY TẮC BẮT BUỘC:
 9. Trả lời ngắn gọn, rõ ràng, không quá dài dòng. Tối đa 200 từ.
 """
 
-        # ===== GỌI GEMINI API =====
-        genai.configure(api_key=settings.GEMINI_API_KEY)
-        model = genai.GenerativeModel('gemini-2.0-flash')
+        # ===== 4) GỌI GEMINI API =====
+        try:
+            model = genai.GenerativeModel(
+                model_name='gemini-2.0-flash',
+                system_instruction=system_prompt,
+            )
+        except Exception as e:
+            logger.error(f"[CHATBOT] Gemini model init error: {e}")
+            # Fallback: thử không dùng system_instruction
+            model = genai.GenerativeModel('gemini-2.0-flash')
 
-        # Xây dựng lịch sử hội thoại
-        gemini_history = []
-        for msg in conversation_history[-10:]:  # Giữ 10 tin nhắn gần nhất
+        # Xây dựng lịch sử hội thoại (đảm bảo xen kẽ user/model)
+        gemini_contents = []
+        prev_role = None
+        for msg in conversation_history[-10:]:
             role = 'user' if msg.get('role') == 'user' else 'model'
-            gemini_history.append({
-                'role': role,
-                'parts': [msg.get('content', '')]
+            content = msg.get('content', '').strip()
+            if not content:
+                continue
+            # Đảm bảo xen kẽ role — nếu trùng role thì gộp
+            if role == prev_role and gemini_contents:
+                gemini_contents[-1]['parts'][0] += '\n' + content
+            else:
+                gemini_contents.append({
+                    'role': role,
+                    'parts': [content]
+                })
+                prev_role = role
+
+        # Thêm tin nhắn hiện tại của user
+        if gemini_contents and gemini_contents[-1]['role'] == 'user':
+            # Nếu tin cuối cùng đã là user, gộp vào
+            gemini_contents[-1]['parts'][0] += '\n' + user_message
+        else:
+            gemini_contents.append({
+                'role': 'user',
+                'parts': [user_message]
             })
 
-        # Tạo chat session
-        chat = model.start_chat(history=gemini_history)
+        logger.info(f"[CHATBOT] Sending to Gemini with {len(gemini_contents)} messages")
 
-        # Gửi tin nhắn với system prompt đính kèm
-        full_message = f"[SYSTEM INSTRUCTIONS - KHÔNG HIỂN THỊ CHO KHÁCH]\n{system_prompt}\n\n[TIN NHẮN CỦA KHÁCH HÀNG]\n{user_message}"
-
-        response = chat.send_message(full_message)
+        # Gọi Gemini
+        response = model.generate_content(gemini_contents)
         reply = response.text
+
+        logger.info(f"[CHATBOT] Gemini replied: {reply[:100]}...")
 
         return JsonResponse({'reply': reply})
 
-    except json.JSONDecodeError:
+    except json.JSONDecodeError as e:
+        logger.error(f"[CHATBOT] JSON decode error: {e}")
         return JsonResponse({'reply': 'Lỗi dữ liệu, vui lòng thử lại!'}, status=400)
+
     except Exception as e:
-        print(f"Chatbot error: {e}")
+        logger.error(f"[CHATBOT] Unexpected error: {e}")
+        logger.error(f"[CHATBOT] Traceback:\n{traceback.format_exc()}")
         return JsonResponse({
             'reply': 'Xin lỗi, mình đang gặp sự cố. Bạn vui lòng thử lại sau nhé! 😅'
         }, status=500)
