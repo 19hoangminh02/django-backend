@@ -11,9 +11,14 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
+import os
+from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Load environment variables from .env file
+load_dotenv(BASE_DIR / '.env')
 
 
 # Quick-start development settings - unsuitable for production
@@ -164,4 +169,4 @@ VIETQR_ACCOUNT_NO = '0869288871'
 VIETQR_ACCOUNT_NAME = 'BUI HOANG MINH'
 
 # ===== GOOGLE GEMINI API (Chatbot) =====
-GEMINI_API_KEY = 'AIzaSyAGBlCs3br9U2ERer35TFAanIRTFYZ2UB0'
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
