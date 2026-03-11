@@ -5,50 +5,228 @@
 
 {% block title %}Thanh toán - Fashion Shop{% endblock %}
 
+{% block extra_css %}
+<style>
+    .checkout-page {
+        padding-top: 100px;
+        padding-bottom: 60px;
+        background: #f8f9fa;
+        min-height: 100vh;
+    }
+    .checkout-card {
+        border: none;
+        border-radius: 16px;
+        box-shadow: 0 2px 20px rgba(0,0,0,.06);
+        overflow: hidden;
+        margin-bottom: 24px;
+    }
+    .checkout-card .card-header {
+        border-bottom: 1px solid #eee;
+        padding: 18px 24px;
+        font-weight: 700;
+    }
+    .checkout-card .card-body {
+        padding: 24px;
+    }
+    .section-title {
+        font-size: .85rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .5px;
+        color: #6c757d;
+        margin-bottom: 16px;
+    }
+    /* Order item */
+    .order-item {
+        display: flex;
+        gap: 14px;
+        padding: 14px 0;
+        border-bottom: 1px solid #f0f0f0;
+    }
+    .order-item:last-child { border-bottom: none; }
+    .order-item-img {
+        width: 72px;
+        height: 72px;
+        border-radius: 10px;
+        object-fit: cover;
+        border: 1px solid #eee;
+        flex-shrink: 0;
+    }
+    .order-item-info { flex: 1; min-width: 0; }
+    .order-item-name {
+        font-weight: 600;
+        font-size: .95rem;
+        margin-bottom: 4px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .order-item-variant {
+        font-size: .82rem;
+        color: #888;
+    }
+    .order-item-price {
+        font-weight: 700;
+        font-size: .95rem;
+        text-align: right;
+        white-space: nowrap;
+    }
+    .stock-warning {
+        display: inline-block;
+        font-size: .72rem;
+        background: #fff3cd;
+        color: #856404;
+        padding: 2px 8px;
+        border-radius: 4px;
+        margin-top: 4px;
+    }
+    /* Summary rows */
+    .summary-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 0;
+        font-size: .95rem;
+    }
+    .summary-row.total {
+        border-top: 2px solid #212529;
+        padding-top: 14px;
+        margin-top: 8px;
+        font-size: 1.15rem;
+        font-weight: 800;
+    }
+    .summary-row.total .text-danger { color: #dc3545 !important; }
+    .discount-row { color: #28a745; }
+    .free-ship-badge {
+        background: #d4edda;
+        color: #155724;
+        padding: 2px 10px;
+        border-radius: 20px;
+        font-size: .82rem;
+        font-weight: 600;
+    }
+    /* Coupon */
+    .coupon-input-group {
+        display: flex;
+        gap: 8px;
+    }
+    .coupon-input-group input {
+        flex: 1;
+        border-radius: 10px;
+        text-transform: uppercase;
+    }
+    .coupon-input-group button {
+        border-radius: 10px;
+        white-space: nowrap;
+        min-width: 100px;
+    }
+    .coupon-applied {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: #d4edda;
+        padding: 10px 16px;
+        border-radius: 10px;
+        font-size: .9rem;
+    }
+    .coupon-applied .coupon-tag {
+        font-weight: 700;
+        color: #155724;
+    }
+    .coupon-applied .remove-coupon {
+        color: #dc3545;
+        cursor: pointer;
+        font-size: .85rem;
+        border: none;
+        background: none;
+    }
+    .coupon-applied .remove-coupon:hover { text-decoration: underline; }
+    /* Payment method */
+    .payment-option {
+        border: 2px solid #e9ecef;
+        border-radius: 12px;
+        padding: 16px;
+        cursor: pointer;
+        transition: all .2s;
+        margin-bottom: 10px;
+    }
+    .payment-option:hover,
+    .payment-option.active {
+        border-color: #dc3545;
+        background: #fff5f5;
+    }
+    .payment-option .form-check-input:checked ~ .form-check-label {
+        color: #dc3545;
+    }
+    /* Submit */
+    .btn-checkout {
+        background: linear-gradient(135deg, #dc3545, #c82333);
+        border: none;
+        color: #fff;
+        font-weight: 700;
+        font-size: 1.05rem;
+        padding: 14px;
+        border-radius: 12px;
+        width: 100%;
+        transition: all .2s;
+    }
+    .btn-checkout:hover {
+        background: linear-gradient(135deg, #c82333, #a71e2a);
+        color: #fff;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(220,53,69,.4);
+    }
+    @media (max-width: 991px) {
+        .checkout-page { padding-top: 80px; }
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="checkout-page">
-    <div class="container my-5">
+    <div class="container">
         <h2 class="mb-4" style="font-weight: 800;">
             <i class="bi bi-credit-card"></i> Thanh toán
         </h2>
 
-        <div class="row">
-            <!-- Thông tin giao hàng -->
-            <div class="col-lg-7">
-                <div class="card shadow-sm mb-4">
-                    <div class="card-header bg-primary text-white">
-                        <h5 class="mb-0"><i class="bi bi-truck"></i> Thông tin giao hàng</h5>
-                    </div>
-                    <div class="card-body">
-                        <form method="post" action="{% url 'shop:create_order' %}">
-                            {% csrf_token %}
+        <form method="post" action="{% url 'shop:create_order' %}" id="checkout-form">
+            {% csrf_token %}
+            <div class="row">
+                <!-- ===== LEFT COLUMN ===== -->
+                <div class="col-lg-7">
 
+                    <!-- Thông tin khách hàng -->
+                    <div class="checkout-card card">
+                        <div class="card-header bg-white">
+                            <i class="bi bi-person-lines-fill text-primary"></i> Thông tin giao hàng
+                        </div>
+                        <div class="card-body">
                             <div class="row mb-3">
                                 <div class="col-md-6">
                                     <label class="form-label">Họ và tên <span class="text-danger">*</span></label>
                                     <input type="text" class="form-control" name="fullname"
-                                        value="{{ user.get_full_name }}" required>
+                                        value="{{ user.get_full_name }}" required placeholder="Nguyễn Văn A">
                                 </div>
                                 <div class="col-md-6">
                                     <label class="form-label">Số điện thoại <span class="text-danger">*</span></label>
-                                    <input type="tel" class="form-control" name="phone" required>
+                                    <input type="tel" class="form-control" name="phone" required
+                                        placeholder="0912 345 678">
                                 </div>
                             </div>
-
                             <div class="mb-3">
-                                <label class="form-label">Email <span class="text-danger">*</span></label>
-                                <input type="email" class="form-control" name="email" value="{{ user.email }}" required>
+                                <label class="form-label">Email</label>
+                                <input type="email" class="form-control" name="email" value="{{ user.email }}"
+                                    placeholder="email@example.com">
                             </div>
-
                             <div class="mb-3">
                                 <label class="form-label">Địa chỉ <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control" name="address" placeholder="Số nhà, tên đường"
-                                    required>
+                                <input type="text" class="form-control" name="address"
+                                    placeholder="Số nhà, tên đường" required>
                             </div>
-
                             <div class="row mb-3">
                                 <div class="col-md-6">
-                                    <label class="form-label">Tỉnh/Thành phố <span class="text-danger">*</span></label>
+                                    <label class="form-label">Tỉnh/Thành phố <span
+                                            class="text-danger">*</span></label>
                                     <input type="text" class="form-control" name="city" required>
                                 </div>
                                 <div class="col-md-6">
@@ -56,98 +234,300 @@
                                     <input type="text" class="form-control" name="district" required>
                                 </div>
                             </div>
-
-                            <div class="mb-3">
+                            <div class="mb-0">
                                 <label class="form-label">Ghi chú</label>
-                                <textarea class="form-control" name="note" rows="3"
-                                    placeholder="Ghi chú cho người bán (tùy chọn)"></textarea>
+                                <textarea class="form-control" name="note" rows="2"
+                                    placeholder="Ghi chú cho người giao hàng (tùy chọn)"></textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Mã giảm giá -->
+                    <div class="checkout-card card">
+                        <div class="card-header bg-white">
+                            <i class="bi bi-tag-fill text-success"></i> Mã giảm giá
+                        </div>
+                        <div class="card-body">
+                            <div id="coupon-input-section" {% if coupon %}style="display:none"{% endif %}>
+                                <div class="coupon-input-group">
+                                    <input type="text" class="form-control" id="coupon-code-input"
+                                        placeholder="Nhập mã giảm giá" maxlength="50">
+                                    <button type="button" class="btn btn-outline-success" id="apply-coupon-btn">
+                                        <i class="bi bi-check-lg"></i> Áp dụng
+                                    </button>
+                                </div>
+                                <div id="coupon-error" class="text-danger mt-2" style="display:none; font-size:.85rem;"></div>
+                            </div>
+                            <div id="coupon-applied-section" {% if not coupon %}style="display:none"{% endif %}>
+                                <div class="coupon-applied">
+                                    <div>
+                                        <i class="bi bi-check-circle-fill text-success"></i>
+                                        <span class="coupon-tag" id="coupon-display">
+                                            {% if coupon %}{{ coupon.code }}{% endif %}
+                                        </span>
+                                        <span class="text-muted ms-2" id="coupon-desc">
+                                            {% if coupon %}- {{ coupon }}{% endif %}
+                                        </span>
+                                    </div>
+                                    <button type="button" class="remove-coupon" id="remove-coupon-btn">
+                                        <i class="bi bi-x-circle"></i> Xóa
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Phương thức thanh toán -->
+                    <div class="checkout-card card">
+                        <div class="card-header bg-white">
+                            <i class="bi bi-wallet2 text-warning"></i> Phương thức thanh toán
+                        </div>
+                        <div class="card-body">
+                            <label class="payment-option active" id="opt-qr">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="payment_method"
+                                        value="qr_code" checked>
+                                    <div class="form-check-label">
+                                        <strong><i class="bi bi-qr-code"></i> Chuyển khoản QR Code</strong>
+                                        <br>
+                                        <small class="text-muted">Quét mã QR để thanh toán nhanh chóng</small>
+                                    </div>
+                                </div>
+                            </label>
+                            <label class="payment-option" id="opt-cod">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="payment_method"
+                                        value="cod">
+                                    <div class="form-check-label">
+                                        <strong><i class="bi bi-cash-coin"></i> Thanh toán khi nhận hàng (COD)</strong>
+                                        <br>
+                                        <small class="text-muted">Thanh toán bằng tiền mặt khi nhận hàng</small>
+                                    </div>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- ===== RIGHT COLUMN ===== -->
+                <div class="col-lg-5">
+                    <div class="checkout-card card" style="position:sticky; top:90px;">
+                        <div class="card-header" style="background:#212529; color:#fff;">
+                            <i class="bi bi-receipt"></i> Đơn hàng của bạn
+                            <span class="badge bg-light text-dark ms-2">{{ cart_items|length }} sản phẩm</span>
+                        </div>
+                        <div class="card-body">
+                            {% if cart_items %}
+                            <!-- Danh sách sản phẩm -->
+                            <div style="max-height: 360px; overflow-y: auto; margin-bottom: 16px;">
+                                {% for item in cart_items %}
+                                <div class="order-item">
+                                    <img src="{% if item.variant and item.variant.image %}{{ item.variant.image.url }}{% else %}{{ item.product.image.url }}{% endif %}"
+                                        alt="{{ item.product.name }}" class="order-item-img">
+                                    <div class="order-item-info">
+                                        <div class="order-item-name">{{ item.product.name }}</div>
+                                        <div class="order-item-variant">
+                                            {% if item.variant %}
+                                            {% if item.variant.size %}Size: {{ item.variant.size }}{% endif %}
+                                            {% if item.variant.color %} | {{ item.variant.get_color_display }}{% endif %}
+                                            {% endif %}
+                                            <br>SL: {{ item.quantity }}
+                                        </div>
+                                        {% if item.variant and item.variant.stock <= 5 %}
+                                        <span class="stock-warning">
+                                            <i class="bi bi-exclamation-triangle"></i> Chỉ còn {{ item.variant.stock }}
+                                        </span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="order-item-price">
+                                        {{ item.get_subtotal|vnd_format }}<small>đ</small>
+                                    </div>
+                                </div>
+                                {% endfor %}
                             </div>
 
-                            <hr>
+                            <hr style="margin: 0 0 12px;">
 
-                            <!-- Phương thức thanh toán -->
-                            <h5 class="mb-3"><i class="bi bi-credit-card"></i> Phương thức thanh toán</h5>
-                            <div class="form-check mb-3">
-                                <input class="form-check-input" type="radio" name="payment_method" id="qr_code"
-                                    value="qr_code" checked>
-                                <label class="form-check-label" for="qr_code">
-                                    <strong>Thanh toán QR Code</strong>
-                                    <br>
-                                    <small class="text-muted">Quét mã QR để thanh toán</small>
-                                </label>
+                            <!-- Tổng kết -->
+                            <div class="summary-row">
+                                <span>Tạm tính:</span>
+                                <span id="summary-subtotal">{{ subtotal|vnd_format }} đ</span>
                             </div>
-                            <div class="form-check mb-3">
-                                <input class="form-check-input" type="radio" name="payment_method" id="cod" value="cod">
-                                <label class="form-check-label" for="cod">
-                                    <strong>Thanh toán khi nhận hàng (COD)</strong>
-                                    <br>
-                                    <small class="text-muted">Thanh toán bằng tiền mặt khi nhận hàng</small>
-                                </label>
+                            <div class="summary-row discount-row" id="discount-row"
+                                {% if discount == 0 %}style="display:none"{% endif %}>
+                                <span><i class="bi bi-tag"></i> Giảm giá:</span>
+                                <span id="summary-discount">-{{ discount|vnd_format }} đ</span>
+                            </div>
+                            <div class="summary-row">
+                                <span>Phí vận chuyển:</span>
+                                <span id="summary-shipping">
+                                    {% if shipping_fee == 0 %}
+                                    <span class="free-ship-badge">Miễn phí</span>
+                                    {% else %}
+                                    {{ shipping_fee|vnd_format }} đ
+                                    {% endif %}
+                                </span>
+                            </div>
+                            {% if shipping_fee > 0 %}
+                            <div class="text-muted" style="font-size:.8rem; text-align:right; margin-top:-4px;">
+                                Miễn phí cho đơn từ {{ free_shipping_threshold|vnd_format }}đ
+                            </div>
+                            {% endif %}
+                            <div class="summary-row total">
+                                <span>Tổng cộng:</span>
+                                <span class="text-danger" id="summary-total">{{ total|vnd_format }} đ</span>
                             </div>
 
-                            <div class="d-grid gap-2 mt-4">
-                                <button type="submit" class="btn btn-lg"
-                                    style="background: #dc3545; border-color: #dc3545; color: #fff; font-weight: 700;">
+                            <div class="mt-4">
+                                <button type="submit" class="btn-checkout" id="btn-submit-order">
                                     <i class="bi bi-check-circle"></i> Đặt hàng
                                 </button>
-                                <a href="{% url 'shop:cart' %}" class="btn btn-outline-secondary">
+                                <a href="{% url 'shop:cart' %}" class="btn btn-outline-secondary w-100 mt-2"
+                                    style="border-radius:12px;">
                                     <i class="bi bi-arrow-left"></i> Quay lại giỏ hàng
                                 </a>
                             </div>
-                        </form>
+                            {% else %}
+                            <p class="text-muted text-center py-5">Không có sản phẩm nào để thanh toán.</p>
+                            {% endif %}
+                        </div>
                     </div>
                 </div>
             </div>
-
-            <!-- Đơn hàng -->
-            <div class="col-lg-5">
-                <div class="card shadow-sm" style="border-radius: 12px; overflow: hidden;">
-                    <div class="card-header" style="background: #212529; color: #fff;">
-                        <h5 class="mb-0"><i class="bi bi-receipt"></i> Đơn hàng của bạn</h5>
-                    </div>
-                    <div class="card-body">
-                        {% if cart_items %}
-                        {% for item in cart_items %}
-                        <div class="d-flex justify-content-between mb-3">
-                            <div class="flex-grow-1">
-                                <h6 class="mb-0">{{ item.product.name }}</h6>
-                                <small class="text-muted">
-                                    {% if item.variant %}
-                                    {% if item.variant.size %}Size: {{ item.variant.size }}{% endif %}
-                                    {% if item.variant.color %} - {{ item.variant.get_color_display }}{% endif %}
-                                    {% endif %}
-                                </small>
-                                <br>
-                                <small class="text-muted">Số lượng: {{ item.quantity }}</small>
-                            </div>
-                            <div>
-                                <strong>{{ item.get_subtotal|vnd_format }} đ</strong>
-                            </div>
-                        </div>
-                        {% endfor %}
-
-                        <hr>
-
-                        <div class="d-flex justify-content-between mb-2">
-                            <span>Tạm tính:</span>
-                            <span>{{ subtotal|vnd_format }} đ</span>
-                        </div>
-                        <div class="d-flex justify-content-between mb-2">
-                            <span>Phí vận chuyển:</span>
-                            <span class="text-success">Miễn phí</span>
-                        </div>
-                        <hr>
-                        <div class="d-flex justify-content-between mb-0">
-                            <span class="fw-bold">Tổng cộng:</span>
-                            <span class="fw-bold text-danger h5">{{ subtotal|vnd_format }} đ</span>
-                        </div>
-                        {% else %}
-                        <p class="text-muted text-center py-5">Không có sản phẩm nào để thanh toán.</p>
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
-        </div>
+        </form>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+    // ===== Payment method toggle =====
+    const paymentOptions = document.querySelectorAll('.payment-option');
+    paymentOptions.forEach(opt => {
+        opt.addEventListener('click', function() {
+            paymentOptions.forEach(o => o.classList.remove('active'));
+            this.classList.add('active');
+        });
+    });
+
+    // ===== Helper: format VND =====
+    function formatVND(num) {
+        return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ' đ';
+    }
+
+    function getCSRFToken() {
+        const cookie = document.cookie.split(';').find(c => c.trim().startsWith('csrftoken='));
+        return cookie ? cookie.split('=')[1] : '';
+    }
+
+    // ===== Apply Coupon =====
+    const applyBtn = document.getElementById('apply-coupon-btn');
+    const couponInput = document.getElementById('coupon-code-input');
+    const couponError = document.getElementById('coupon-error');
+    const couponInputSection = document.getElementById('coupon-input-section');
+    const couponAppliedSection = document.getElementById('coupon-applied-section');
+    const couponDisplay = document.getElementById('coupon-display');
+    const couponDesc = document.getElementById('coupon-desc');
+    const removeCouponBtn = document.getElementById('remove-coupon-btn');
+
+    if (applyBtn) {
+        applyBtn.addEventListener('click', function() {
+            const code = couponInput.value.trim();
+            if (!code) {
+                couponError.textContent = 'Vui lòng nhập mã giảm giá.';
+                couponError.style.display = 'block';
+                return;
+            }
+            applyBtn.disabled = true;
+            applyBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+
+            fetch('{% url "shop:apply_coupon" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCSRFToken(),
+                },
+                body: JSON.stringify({ coupon_code: code })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    couponError.style.display = 'none';
+                    couponInputSection.style.display = 'none';
+                    couponAppliedSection.style.display = 'block';
+                    couponDisplay.textContent = data.coupon_code;
+                    couponDesc.textContent = '- ' + data.coupon_description;
+                    updateSummary(data.discount, data.shipping_fee, data.total);
+                } else {
+                    couponError.textContent = data.message;
+                    couponError.style.display = 'block';
+                }
+            })
+            .catch(() => {
+                couponError.textContent = 'Lỗi kết nối, vui lòng thử lại.';
+                couponError.style.display = 'block';
+            })
+            .finally(() => {
+                applyBtn.disabled = false;
+                applyBtn.innerHTML = '<i class="bi bi-check-lg"></i> Áp dụng';
+            });
+        });
+
+        couponInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                applyBtn.click();
+            }
+        });
+    }
+
+    // ===== Remove Coupon =====
+    if (removeCouponBtn) {
+        removeCouponBtn.addEventListener('click', function() {
+            fetch('{% url "shop:remove_coupon" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCSRFToken(),
+                },
+                body: JSON.stringify({})
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    couponAppliedSection.style.display = 'none';
+                    couponInputSection.style.display = 'block';
+                    couponInput.value = '';
+                    updateSummary(data.discount, data.shipping_fee, data.total);
+                }
+            });
+        });
+    }
+
+    // ===== Update Summary =====
+    function updateSummary(discount, shippingFee, total) {
+        const discountRow = document.getElementById('discount-row');
+        const summaryDiscount = document.getElementById('summary-discount');
+        const summaryShipping = document.getElementById('summary-shipping');
+        const summaryTotal = document.getElementById('summary-total');
+
+        if (discount > 0) {
+            discountRow.style.display = 'flex';
+            summaryDiscount.textContent = '-' + formatVND(discount);
+        } else {
+            discountRow.style.display = 'none';
+        }
+
+        if (shippingFee === 0) {
+            summaryShipping.innerHTML = '<span class="free-ship-badge">Miễn phí</span>';
+        } else {
+            summaryShipping.textContent = formatVND(shippingFee);
+        }
+
+        summaryTotal.textContent = formatVND(total);
+    }
+})();
+</script>
 {% endblock %}

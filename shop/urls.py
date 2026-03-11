@@ -32,7 +32,6 @@ urlpatterns = [
     path('checkout/', views.checkout, name='checkout'),
     path('order/create/', views.create_order, name='create_order'),
     path('payment/<int:order_id>/', views.payment_view, name='payment'),
-    path('payment/<int:order_id>/confirm/', views.confirm_payment, name='confirm_payment'),
     path('orders/', views.order_list, name='order_list'),
     path('orders/<int:order_id>/', views.order_detail, name='order_detail'),
     
@@ -45,6 +44,10 @@ urlpatterns = [
     # ===== SEPAY WEBHOOK & PAYMENT API =====
     path('api/sepay-webhook/', views.sepay_webhook, name='sepay_webhook'),
     path('api/payment-status/<int:order_id>/', views.check_payment_status, name='check_payment_status'),
+    
+    # ===== COUPON API =====
+    path('api/apply-coupon/', views.apply_coupon, name='apply_coupon'),
+    path('api/remove-coupon/', views.remove_coupon, name='remove_coupon'),
     
     # ===== WISHLIST (Sản phẩm yêu thích) =====
     path('wishlist/', views.wishlist_view, name='wishlist'),

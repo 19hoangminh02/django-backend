@@ -12,7 +12,8 @@ from .models import (
     OrderItem, 
     Payment, 
     ViewHistory,
-    Wishlist
+    Wishlist,
+    Coupon
 )
 
 
@@ -153,12 +154,29 @@ class PaymentInline(admin.StackedInline):
     can_delete = False
 
 
+# ===== ADMIN CHO COUPON =====
+@admin.register(Coupon)
+class CouponAdmin(admin.ModelAdmin):
+    list_display = ('code', 'discount_type', 'discount_value', 'max_discount', 'min_order_value', 'usage_status', 'is_active', 'expires_at')
+    list_filter = ('discount_type', 'is_active')
+    search_fields = ('code',)
+    list_editable = ('is_active',)
+    ordering = ('-created_at',)
+    list_per_page = 25
+    
+    def usage_status(self, obj):
+        if obj.usage_limit == 0:
+            return format_html('<span style="color: green;">{} đã dùng (không giới hạn)</span>', obj.used_count)
+        return format_html('{}/{}', obj.used_count, obj.usage_limit)
+    usage_status.short_description = 'Sử dụng'
+
+
 # ===== ADMIN CHO ORDER =====
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
-    list_display = ('order_id', 'user', 'total_display', 'status', 'payment_status', 'created_at')
-    list_filter = ('status', 'created_at')
-    search_fields = ('user__username', 'id')
+    list_display = ('order_id', 'user', 'fullname', 'phone', 'total_display', 'payment_method', 'status', 'payment_status', 'created_at')
+    list_filter = ('status', 'payment_method', 'created_at')
+    search_fields = ('user__username', 'id', 'fullname', 'phone')
     list_editable = ('status',)
     ordering = ('-created_at',)
     readonly_fields = ('created_at', 'updated_at')
@@ -166,8 +184,11 @@ class OrderAdmin(admin.ModelAdmin):
     date_hierarchy = 'created_at'
     
     fieldsets = (
-        ('Thông tin đơn hàng', {
-            'fields': ('user', 'total_price', 'status')
+        ('Thông tin khách hàng', {
+            'fields': ('user', 'fullname', 'phone', 'address', 'note')
+        }),
+        ('Thanh toán', {
+            'fields': ('payment_method', 'total_price', 'discount', 'shipping_fee', 'coupon', 'status')
         }),
         ('Thời gian', {
             'fields': ('created_at', 'updated_at')

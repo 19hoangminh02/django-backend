@@ -207,8 +207,101 @@ class CartItem(models.Model):
         return self.product.price * self.quantity
 
 
+# Model Mã giảm giá
+class Coupon(models.Model):
+    DISCOUNT_TYPE_CHOICES = [
+        ('percent', 'Phần trăm (%)'),
+        ('fixed', 'Số tiền cố định (đ)'),
+    ]
+    
+    code = models.CharField(
+        max_length=50, 
+        unique=True, 
+        verbose_name="Mã giảm giá"
+    )
+    discount_type = models.CharField(
+        max_length=10, 
+        choices=DISCOUNT_TYPE_CHOICES,
+        verbose_name="Loại giảm giá"
+    )
+    discount_value = models.DecimalField(
+        max_digits=10, 
+        decimal_places=0,
+        verbose_name="Giá trị giảm"
+    )
+    max_discount = models.DecimalField(
+        max_digits=10, 
+        decimal_places=0, 
+        null=True, 
+        blank=True,
+        verbose_name="Giảm tối đa",
+        help_text="Áp dụng cho loại phần trăm"
+    )
+    min_order_value = models.DecimalField(
+        max_digits=10, 
+        decimal_places=0, 
+        default=0,
+        verbose_name="Giá trị đơn tối thiểu"
+    )
+    usage_limit = models.PositiveIntegerField(
+        default=0,
+        verbose_name="Giới hạn sử dụng",
+        help_text="0 = không giới hạn"
+    )
+    used_count = models.PositiveIntegerField(
+        default=0,
+        verbose_name="Đã sử dụng"
+    )
+    expires_at = models.DateTimeField(
+        verbose_name="Ngày hết hạn"
+    )
+    is_active = models.BooleanField(
+        default=True,
+        verbose_name="Đang hoạt động"
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Ngày tạo")
+    
+    class Meta:
+        verbose_name = "Mã giảm giá"
+        verbose_name_plural = "Mã giảm giá"
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        if self.discount_type == 'percent':
+            return f"{self.code} - Giảm {self.discount_value}%"
+        return f"{self.code} - Giảm {self.discount_value:,.0f}đ"
+    
+    def is_valid(self, order_subtotal=0):
+        """Kiểm tra mã giảm giá có hợp lệ không"""
+        if not self.is_active:
+            return False, "Mã giảm giá không hoạt động."
+        if self.expires_at < timezone.now():
+            return False, "Mã giảm giá đã hết hạn."
+        if self.usage_limit > 0 and self.used_count >= self.usage_limit:
+            return False, "Mã giảm giá đã hết lượt sử dụng."
+        if order_subtotal < self.min_order_value:
+            return False, f"Đơn hàng tối thiểu {self.min_order_value:,.0f}đ để dùng mã này."
+        return True, "OK"
+    
+    def calculate_discount(self, subtotal):
+        """Tính số tiền được giảm"""
+        if self.discount_type == 'percent':
+            discount = subtotal * self.discount_value / 100
+            if self.max_discount and discount > self.max_discount:
+                discount = self.max_discount
+        else:
+            discount = self.discount_value
+        # Không giảm quá tổng đơn
+        return min(discount, subtotal)
+
+
 # Model Đơn hàng
 class Order(models.Model):
+    PAYMENT_METHOD_CHOICES = [
+        ('qr_code', 'QR Code'),
+        ('cod', 'COD'),
+    ]
+    
     STATUS_CHOICES = [
         ('pending', 'Chờ thanh toán'),
         ('paid', 'Đã thanh toán'),
@@ -224,11 +317,45 @@ class Order(models.Model):
         related_name='orders',
         verbose_name="Người đặt"
     )
+    
+    # Thông tin khách hàng
+    fullname = models.CharField(max_length=200, verbose_name="Họ và tên", default="")
+    phone = models.CharField(max_length=20, verbose_name="Số điện thoại", default="")
+    address = models.TextField(verbose_name="Địa chỉ giao hàng", default="")
+    note = models.TextField(blank=True, default="", verbose_name="Ghi chú")
+    
+    # Tài chính
     total_price = models.DecimalField(
         max_digits=10, 
         decimal_places=0,
         verbose_name="Tổng tiền"
     )
+    discount = models.DecimalField(
+        max_digits=10, 
+        decimal_places=0, 
+        default=0,
+        verbose_name="Giảm giá"
+    )
+    shipping_fee = models.DecimalField(
+        max_digits=10, 
+        decimal_places=0, 
+        default=0,
+        verbose_name="Phí vận chuyển"
+    )
+    coupon = models.ForeignKey(
+        Coupon,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        verbose_name="Mã giảm giá"
+    )
+    payment_method = models.CharField(
+        max_length=20,
+        choices=PAYMENT_METHOD_CHOICES,
+        default='qr_code',
+        verbose_name="Phương thức thanh toán"
+    )
+    
     status = models.CharField(
         max_length=20, 
         choices=STATUS_CHOICES, 
@@ -245,6 +372,10 @@ class Order(models.Model):
     
     def __str__(self):
         return f"Đơn #{self.id} - {self.user.username}"
+    
+    def get_subtotal(self):
+        """Tính tạm tính từ OrderItems"""
+        return sum(item.get_subtotal() for item in self.items.all())
 
 
 # Model Chi tiết đơn hàng

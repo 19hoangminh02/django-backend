@@ -23,7 +23,8 @@ from .models import (
     Product, Category, ProductVariant,
     Cart, CartItem,
     Order, OrderItem, Payment,
-    ViewHistory, Wishlist
+    ViewHistory, Wishlist,
+    Coupon
 )
 from django.db.models import Sum, Count, Q, Value
 from django.db.models.functions import Coalesce
@@ -417,6 +418,10 @@ def clear_cart(request):
     return redirect('shop:cart')
 
 
+FLAT_SHIPPING_FEE = 30000
+FREE_SHIPPING_THRESHOLD = 500000
+
+
 @login_required
 def checkout(request):
     cart = get_object_or_404(Cart, user=request.user)
@@ -439,15 +444,114 @@ def checkout(request):
         messages.warning(request, 'Không có sản phẩm nào để thanh toán.')
         return redirect('shop:cart')
 
-    # Tính subtotal trong Python (không tính trong template)
+    # Tính subtotal
     subtotal = sum(item.get_subtotal() for item in cart_items)
+
+    # Tính shipping
+    shipping_fee = 0 if subtotal >= FREE_SHIPPING_THRESHOLD else FLAT_SHIPPING_FEE
+
+    # Xử lý coupon từ session
+    discount = 0
+    coupon = None
+    coupon_id = request.session.get('checkout_coupon_id')
+    if coupon_id:
+        try:
+            coupon = Coupon.objects.get(id=coupon_id)
+            valid, msg = coupon.is_valid(subtotal)
+            if valid:
+                discount = int(coupon.calculate_discount(subtotal))
+            else:
+                # Coupon không còn hợp lệ → xóa khỏi session
+                request.session.pop('checkout_coupon_id', None)
+                coupon = None
+        except Coupon.DoesNotExist:
+            request.session.pop('checkout_coupon_id', None)
+
+    total = subtotal - discount + shipping_fee
 
     return render(request, 'shop/checkout.html', {
         'cart': cart,
         'cart_items': cart_items,
         'subtotal': subtotal,
+        'shipping_fee': shipping_fee,
+        'discount': discount,
+        'total': total,
+        'coupon': coupon,
+        'free_shipping_threshold': FREE_SHIPPING_THRESHOLD,
     })
 
+
+@login_required
+@require_POST
+def apply_coupon(request):
+    """AJAX endpoint: áp dụng mã giảm giá"""
+    try:
+        data = json.loads(request.body)
+        coupon_code = data.get('coupon_code', '').strip().upper()
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'message': 'Dữ liệu không hợp lệ.'}, status=400)
+
+    if not coupon_code:
+        return JsonResponse({'success': False, 'message': 'Vui lòng nhập mã giảm giá.'})
+
+    # Tính subtotal hiện tại
+    cart = get_object_or_404(Cart, user=request.user)
+    selected_ids = request.session.get('selected_cart_items', [])
+    cart_items = cart.items.filter(id__in=selected_ids)
+    subtotal = sum(item.get_subtotal() for item in cart_items)
+
+    # Tìm coupon
+    try:
+        coupon = Coupon.objects.get(code=coupon_code)
+    except Coupon.DoesNotExist:
+        return JsonResponse({'success': False, 'message': 'Mã giảm giá không tồn tại.'})
+
+    # Validate
+    valid, msg = coupon.is_valid(subtotal)
+    if not valid:
+        return JsonResponse({'success': False, 'message': msg})
+
+    # Tính discount
+    discount = int(coupon.calculate_discount(subtotal))
+
+    # Lưu coupon_id vào session
+    request.session['checkout_coupon_id'] = coupon.id
+
+    # Tính lại shipping & total
+    shipping_fee = 0 if subtotal >= FREE_SHIPPING_THRESHOLD else FLAT_SHIPPING_FEE
+    total = subtotal - discount + shipping_fee
+
+    return JsonResponse({
+        'success': True,
+        'message': f'Áp dụng mã "{coupon.code}" thành công!',
+        'discount': discount,
+        'shipping_fee': shipping_fee,
+        'total': total,
+        'coupon_code': coupon.code,
+        'coupon_description': str(coupon),
+    })
+
+
+@login_required
+@require_POST
+def remove_coupon(request):
+    """AJAX endpoint: xóa mã giảm giá"""
+    request.session.pop('checkout_coupon_id', None)
+
+    cart = get_object_or_404(Cart, user=request.user)
+    selected_ids = request.session.get('selected_cart_items', [])
+    cart_items = cart.items.filter(id__in=selected_ids)
+    subtotal = sum(item.get_subtotal() for item in cart_items)
+    shipping_fee = 0 if subtotal >= FREE_SHIPPING_THRESHOLD else FLAT_SHIPPING_FEE
+    total = subtotal + shipping_fee
+
+    return JsonResponse({
+        'success': True,
+        'message': 'Đã xóa mã giảm giá.',
+        'discount': 0,
+        'shipping_fee': shipping_fee,
+        'total': total,
+    })
 
 
 @login_required
@@ -462,7 +566,28 @@ def create_order(request):
             messages.warning(request, 'Không có sản phẩm nào để tạo đơn.')
             return redirect('shop:cart')
 
-        # ✅ Kiểm tra tồn kho
+        # Lấy thông tin khách hàng từ form
+        fullname = request.POST.get('fullname', '').strip()
+        phone = request.POST.get('phone', '').strip()
+        address = request.POST.get('address', '').strip()
+        city = request.POST.get('city', '').strip()
+        district = request.POST.get('district', '').strip()
+        note = request.POST.get('note', '').strip()
+        payment_method = request.POST.get('payment_method', 'qr_code')
+
+        # Ghép địa chỉ đầy đủ
+        full_address = address
+        if district:
+            full_address += f", {district}"
+        if city:
+            full_address += f", {city}"
+
+        # Validate thông tin bắt buộc
+        if not fullname or not phone or not address:
+            messages.error(request, 'Vui lòng điền đầy đủ thông tin giao hàng.')
+            return redirect('shop:checkout')
+
+        # Kiểm tra tồn kho
         for item in cart_items:
             if item.variant and item.variant.stock < item.quantity:
                 messages.error(
@@ -471,17 +596,52 @@ def create_order(request):
                 )
                 return redirect('shop:checkout')
 
-        # ✅ TÍNH ĐÚNG TỔNG TIỀN (CHỈ ITEM ĐÃ CHỌN)
-        total_price = sum(item.get_subtotal() for item in cart_items)
+        # Tính subtotal
+        subtotal = sum(item.get_subtotal() for item in cart_items)
 
-        # ✅ TẠO ĐƠN
+        # Tính shipping
+        shipping_fee = 0 if subtotal >= FREE_SHIPPING_THRESHOLD else FLAT_SHIPPING_FEE
+
+        # Xử lý coupon (recalculate server-side)
+        discount = 0
+        coupon = None
+        coupon_id = request.session.get('checkout_coupon_id')
+        if coupon_id:
+            try:
+                coupon = Coupon.objects.get(id=coupon_id)
+                valid, msg = coupon.is_valid(subtotal)
+                if valid:
+                    discount = int(coupon.calculate_discount(subtotal))
+                else:
+                    coupon = None
+            except Coupon.DoesNotExist:
+                coupon = None
+
+        # Tính total
+        total_price = subtotal - discount + shipping_fee
+
+        # Xác định trạng thái theo phương thức thanh toán
+        if payment_method == 'cod':
+            order_status = 'processing'
+        else:
+            order_status = 'pending'
+
+        # Tạo đơn hàng
         order = Order.objects.create(
             user=request.user,
+            fullname=fullname,
+            phone=phone,
+            address=full_address,
+            note=note,
             total_price=total_price,
-            status='pending'
+            discount=discount,
+            shipping_fee=shipping_fee,
+            coupon=coupon,
+            payment_method=payment_method,
+            status=order_status,
         )
 
-        # ✅ TẠO ORDER ITEM + TRỪ KHO
+        # Tạo OrderItems + trừ kho
         for item in cart_items:
             OrderItem.objects.create(
                 order=order,
@@ -497,24 +657,31 @@ def create_order(request):
                     item.variant.is_available = False
                 item.variant.save()
 
-        # ✅ LẤY PHƯƠNG THỨC THANH TOÁN TỪ FORM
-        payment_method = request.POST.get('payment_method', 'qr_code')
-        
-        # ✅ TẠO PAYMENT
+        # Tạo Payment
         Payment.objects.create(
             order=order,
             method=payment_method,
             status='pending'
         )
 
-        # ✅ XÓA CHỈ CÁC ITEM ĐÃ THANH TOÁN (KHÔNG XÓA TOÀN BỘ CART)
+        # Tăng used_count của coupon
+        if coupon:
+            coupon.used_count += 1
+            coupon.save()
+
+        # Xóa cart items đã thanh toán
         cart_items.delete()
-        
-        # ✅ XÓA SESSION SELECTED ITEMS
+
+        # Xóa session
         request.session.pop('selected_cart_items', None)
+        request.session.pop('checkout_coupon_id', None)
 
         messages.success(request, f'Đơn hàng #{order.id} đã được tạo thành công!')
-        return redirect('shop:payment', order_id=order.id)
+
+        if payment_method == 'cod':
+            return redirect('shop:order_detail', order_id=order.id)
+        else:
+            return redirect('shop:payment', order_id=order.id)
 
     return redirect('shop:checkout')
 
@@ -524,6 +691,14 @@ def payment_view(request, order_id):
     """Trang thanh toán QR Code VietQR"""
     order = get_object_or_404(Order, id=order_id, user=request.user)
     payment = get_object_or_404(Payment, order=order)
+
+    # Nếu là COD, redirect về order detail
+    if payment.method == 'cod':
+        return redirect('shop:order_detail', order_id=order.id)
+
+    # Nếu đã thanh toán rồi, redirect về order detail
+    if payment.status == 'completed':
+        return redirect('shop:order_detail', order_id=order.id)
     
     # Tạo mã tham chiếu nếu chưa có
     if not payment.reference_code:
@@ -561,27 +736,6 @@ def payment_view(request, order_id):
         'account_name': account_name,
     }
     return render(request, 'shop/payment.html', context)
-
-
-@login_required
-def confirm_payment(request, order_id):
-    """Xác nhận đã thanh toán (thủ công)"""
-    if request.method == 'POST':
-        order = get_object_or_404(Order, id=order_id, user=request.user)
-        payment = get_object_or_404(Payment, order=order)
-        
-        # Cập nhật trạng thái
-        payment.status = 'completed'
-        payment.paid_at = timezone.now()
-        payment.save()
-        
-        order.status = 'paid'
-        order.save()
-        
-        messages.success(request, 'Cảm ơn bạn đã thanh toán! Đơn hàng của bạn đang được xử lý.')
-        return redirect('shop:order_detail', order_id=order.id)
-    
-    return redirect('shop:payment', order_id=order_id)
 
 
 @csrf_exempt

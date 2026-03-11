@@ -5,205 +5,269 @@
 
 {% block title %}Thanh toán - Đơn hàng #{{ order.id }}{% endblock %}
 
+{% block extra_css %}
+<style>
+    .payment-page {
+        padding-top: 100px;
+        padding-bottom: 60px;
+        background: #f8f9fa;
+        min-height: 100vh;
+    }
+    .payment-card {
+        border: none;
+        border-radius: 16px;
+        box-shadow: 0 4px 24px rgba(0,0,0,.08);
+        overflow: hidden;
+    }
+    .payment-card .card-header {
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        color: #fff;
+        text-align: center;
+        padding: 24px;
+    }
+    .payment-card .card-header h3 { margin: 0; font-weight: 800; }
+    .qr-container {
+        background: #fff;
+        padding: 24px;
+        border-radius: 16px;
+        display: inline-block;
+        box-shadow: 0 2px 16px rgba(0,0,0,.06);
+    }
+    .qr-container img { max-width: 260px; }
+    .bank-info-table td { padding: 8px 12px; font-size: .95rem; }
+    .bank-info-table td:first-child { font-weight: 600; color: #6c757d; width: 40%; }
+    .copy-btn {
+        border-radius: 6px;
+        font-size: .78rem;
+        padding: 2px 10px;
+    }
+    /* Countdown */
+    .countdown-container {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        font-size: .9rem;
+        color: #6c757d;
+    }
+    .countdown-container .time { font-weight: 700; color: #dc3545; font-size: 1.1rem; }
+    /* Status */
+    .waiting-pulse {
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: #ffc107;
+        animation: pulse 1.5s ease-in-out infinite;
+        margin-right: 8px;
+    }
+    @keyframes pulse {
+        0%, 100% { transform: scale(1); opacity: 1; }
+        50% { transform: scale(1.4); opacity: .5; }
+    }
+    .success-status {
+        background: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+        border-radius: 12px;
+        padding: 20px;
+        text-align: center;
+    }
+    .success-status i { font-size: 2.5rem; }
+    /* Order detail table */
+    .order-detail-card {
+        border: none;
+        border-radius: 16px;
+        box-shadow: 0 2px 12px rgba(0,0,0,.05);
+        overflow: hidden;
+        margin-top: 24px;
+    }
+    @media (max-width: 991px) {
+        .payment-page { padding-top: 80px; }
+    }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="container my-5">
-    <div class="row justify-content-center">
-        <div class="col-md-8">
-            <div class="card shadow">
-                <div class="card-header bg-primary text-white text-center">
-                    <h3 class="mb-0">
-                        {% if payment.method == 'cod' %}
-                        <i class="bi bi-truck"></i> Thanh toán khi nhận hàng (COD)
-                        {% else %}
-                        <i class="bi bi-qr-code"></i> Thanh toán QR VietQR
-                        {% endif %}
-                    </h3>
-                </div>
-                <div class="card-body text-center p-5">
-                    <div class="alert alert-info mb-4">
-                        <i class="bi bi-info-circle"></i>
-                        <strong>Đơn hàng #{{ order.id }}</strong> đã được tạo thành công!
-                    </div>
-
-                    <!-- Thông tin đơn hàng -->
-                    <div class="row mb-4">
-                        <div class="col-md-6 text-start">
-                            <p class="mb-2"><strong>Người đặt:</strong> {{ order.user.username }}</p>
-                            <p class="mb-2"><strong>Email:</strong> {{ order.user.email }}</p>
-                            <p class="mb-2"><strong>Ngày đặt:</strong> {{ order.created_at|date:"d/m/Y H:i" }}</p>
-                        </div>
-                        <div class="col-md-6 text-start">
-                            <p class="mb-2"><strong>Trạng thái:</strong>
-                                <span class="badge bg-warning" id="payment-status">{{ order.get_status_display }}</span>
-                            </p>
-                            <p class="mb-2"><strong>Tổng tiền:</strong>
-                                <span class="text-danger fw-bold fs-5">{{ order.total_price|vnd_format }}
-                                    đ</span>
-                            </p>
-                        </div>
-                    </div>
-
-                    <hr>
-
-                    {% if payment.method == 'cod' %}
-                    <!-- ===== COD: Thông báo thanh toán khi nhận hàng ===== -->
-                    <div class="py-4">
-                        <div class="mb-4">
-                            <i class="bi bi-cash-coin text-success" style="font-size: 3rem;"></i>
-                        </div>
-                        <h4 class="mb-3 text-success">Bạn sẽ thanh toán khi nhận hàng.</h4>
-                        <p class="text-muted">
-                            Đơn hàng của bạn đang được xử lý. Vui lòng chuẩn bị
-                            <strong class="text-danger">{{ order.total_price|vnd_format }} đ</strong>
-                            khi nhận hàng.
+<div class="payment-page">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="payment-card card">
+                    <div class="card-header">
+                        <h3><i class="bi bi-qr-code"></i> Thanh toán QR VietQR</h3>
+                        <p class="mb-0 mt-2" style="opacity:.85; font-size:.95rem;">
+                            Đơn hàng #{{ order.id }}
                         </p>
                     </div>
+                    <div class="card-body text-center p-4 p-md-5">
 
-                    <hr>
-
-                    <div class="d-grid gap-2">
-                        <a href="{% url 'shop:order_detail' order.id %}" class="btn btn-success btn-lg">
-                            <i class="bi bi-receipt"></i> Xem chi tiết đơn hàng
-                        </a>
-                        <a href="{% url 'shop:home' %}" class="btn btn-outline-primary">
-                            <i class="bi bi-house"></i> Về trang chủ
-                        </a>
-                    </div>
-
-                    {% else %}
-                    <!-- ===== QR CODE: Chuyển khoản ===== -->
-
-                    <!-- QR Code VietQR -->
-                    <h4 class="mb-3">
-                        <i class="bi bi-phone"></i> Quét mã QR để thanh toán
-                    </h4>
-                    <div class="bg-white p-4 d-inline-block border rounded shadow-sm">
-                        <img src="{{ qr_url }}" alt="QR Code VietQR" style="max-width: 280px;" id="qr-code-img">
-                    </div>
-
-                    <!-- Thông tin chuyển khoản -->
-                    <div class="alert alert-secondary mt-4 text-start">
-                        <h5 class="mb-3"><i class="bi bi-bank"></i> Thông tin chuyển khoản</h5>
-                        <table class="table table-borderless mb-0">
-                            <tr>
-                                <td width="40%"><strong>Ngân hàng:</strong></td>
-                                <td>{{ bank_name }}</td>
-                            </tr>
-                            <tr>
-                                <td><strong>Số tài khoản:</strong></td>
-                                <td>
-                                    <code class="bg-light px-2 py-1">{{ account_no }}</code>
-                                    <button class="btn btn-sm btn-outline-secondary ms-2"
-                                        onclick="copyToClipboard('{{ account_no }}')" title="Sao chép">
-                                        <i class="bi bi-clipboard"></i>
-                                    </button>
-                                </td>
-                            </tr>
-                            <tr>
-                                <td><strong>Chủ tài khoản:</strong></td>
-                                <td>{{ account_name }}</td>
-                            </tr>
-                            <tr>
-                                <td><strong>Số tiền:</strong></td>
-                                <td><span class="text-danger fw-bold">{{ order.total_price|vnd_format }}
-                                        đ</span></td>
-                            </tr>
-                            <tr>
-                                <td><strong>Nội dung CK:</strong></td>
-                                <td>
-                                    <code class="bg-warning px-2 py-1 fw-bold">{{ payment.reference_code }}</code>
-                                    <button class="btn btn-sm btn-outline-secondary ms-2"
-                                        onclick="copyToClipboard('{{ payment.reference_code }}')" title="Sao chép">
-                                        <i class="bi bi-clipboard"></i>
-                                    </button>
-                                    <small class="text-danger d-block mt-1">* Bắt buộc ghi đúng nội dung này!</small>
-                                </td>
-                            </tr>
-                        </table>
-                    </div>
-
-                    <!-- Trạng thái chờ -->
-                    <div class="alert alert-warning mt-3" id="waiting-status">
-                        <div class="d-flex align-items-center justify-content-center">
-                            <div class="spinner-border spinner-border-sm me-2" role="status"></div>
-                            <span>Đang chờ xác nhận thanh toán...</span>
+                        <!-- Thông tin đơn hàng -->
+                        <div class="row mb-4 text-start">
+                            <div class="col-md-6">
+                                <p class="mb-2"><strong>Người nhận:</strong> {{ order.fullname }}</p>
+                                <p class="mb-2"><strong>SĐT:</strong> {{ order.phone }}</p>
+                                <p class="mb-2"><strong>Ngày đặt:</strong> {{ order.created_at|date:"d/m/Y H:i" }}</p>
+                            </div>
+                            <div class="col-md-6">
+                                <p class="mb-2"><strong>Trạng thái:</strong>
+                                    <span class="badge bg-warning" id="payment-status">{{ order.get_status_display }}</span>
+                                </p>
+                                <p class="mb-2"><strong>Tổng tiền:</strong>
+                                    <span class="text-danger fw-bold fs-5">{{ order.total_price|vnd_format }} đ</span>
+                                </p>
+                            </div>
                         </div>
-                        <small class="text-muted">Trang sẽ tự động cập nhật khi thanh toán thành công</small>
-                    </div>
 
-                    <!-- Thông báo thành công (ẩn mặc định) -->
-                    <div class="alert alert-success mt-3 d-none" id="success-status">
-                        <i class="bi bi-check-circle-fill"></i>
-                        <strong>Thanh toán thành công!</strong>
-                        <p class="mb-0 mt-2">Đang chuyển hướng...</p>
-                    </div>
+                        <hr>
 
-                    <hr>
+                        <!-- QR Code -->
+                        <h5 class="mb-3">
+                            <i class="bi bi-phone"></i> Quét mã QR để thanh toán
+                        </h5>
+                        <div class="qr-container mb-4">
+                            <img src="{{ qr_url }}" alt="QR Code VietQR">
+                        </div>
 
-                    <!-- Nút xác nhận thủ công -->
-                    <p class="text-muted mb-3">
-                        <small>Nếu đã chuyển khoản nhưng chưa được xác nhận tự động, nhấn nút bên dưới:</small>
-                    </p>
-                    <form method="post" action="{% url 'shop:confirm_payment' order.id %}">
-                        {% csrf_token %}
+                        <!-- Thông tin chuyển khoản -->
+                        <div class="alert alert-secondary text-start" style="border-radius:12px;">
+                            <h6 class="mb-3"><i class="bi bi-bank"></i> Thông tin chuyển khoản</h6>
+                            <table class="table table-borderless bank-info-table mb-0">
+                                <tr>
+                                    <td>Ngân hàng:</td>
+                                    <td>{{ bank_name }}</td>
+                                </tr>
+                                <tr>
+                                    <td>Số tài khoản:</td>
+                                    <td>
+                                        <code class="bg-light px-2 py-1">{{ account_no }}</code>
+                                        <button class="btn btn-sm btn-outline-secondary copy-btn ms-2"
+                                            onclick="copyToClipboard('{{ account_no }}')" title="Sao chép">
+                                            <i class="bi bi-clipboard"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Chủ tài khoản:</td>
+                                    <td>{{ account_name }}</td>
+                                </tr>
+                                <tr>
+                                    <td>Số tiền:</td>
+                                    <td><span class="text-danger fw-bold">{{ order.total_price|vnd_format }} đ</span></td>
+                                </tr>
+                                <tr>
+                                    <td>Nội dung CK:</td>
+                                    <td>
+                                        <code class="bg-warning px-2 py-1 fw-bold">{{ payment.reference_code }}</code>
+                                        <button class="btn btn-sm btn-outline-secondary copy-btn ms-2"
+                                            onclick="copyToClipboard('{{ payment.reference_code }}')" title="Sao chép">
+                                            <i class="bi bi-clipboard"></i>
+                                        </button>
+                                        <small class="text-danger d-block mt-1">* Bắt buộc ghi đúng nội dung này!</small>
+                                    </td>
+                                </tr>
+                            </table>
+                        </div>
+
+                        <!-- Trạng thái chờ + countdown -->
+                        <div class="alert alert-warning mt-3" id="waiting-status" style="border-radius:12px;">
+                            <div class="d-flex align-items-center justify-content-center mb-2">
+                                <span class="waiting-pulse"></span>
+                                <span>Đang chờ xác nhận thanh toán...</span>
+                            </div>
+                            <div class="countdown-container">
+                                <i class="bi bi-clock"></i>
+                                Thời gian còn lại: <span class="time" id="countdown-timer">15:00</span>
+                            </div>
+                            <small class="text-muted d-block mt-1">Trang sẽ tự động cập nhật khi thanh toán thành công</small>
+                        </div>
+
+                        <!-- Thông báo thành công (ẩn mặc định) -->
+                        <div class="d-none mt-3" id="success-status">
+                            <div class="success-status">
+                                <i class="bi bi-check-circle-fill text-success"></i>
+                                <h4 class="mt-2 mb-1 text-success">Thanh toán thành công!</h4>
+                                <p class="mb-0">Đang chuyển hướng đến chi tiết đơn hàng...</p>
+                            </div>
+                        </div>
+
+                        <hr>
+
+                        <!-- Các nút điều hướng -->
                         <div class="d-grid gap-2">
-                            <button type="submit" class="btn btn-success btn-lg">
-                                <i class="bi bi-check-circle"></i> Tôi đã thanh toán
-                            </button>
-                            <a href="{% url 'shop:order_detail' order.id %}" class="btn btn-outline-secondary">
+                            <a href="{% url 'shop:order_detail' order.id %}" class="btn btn-outline-secondary btn-lg"
+                                style="border-radius:12px;">
                                 <i class="bi bi-receipt"></i> Xem chi tiết đơn hàng
                             </a>
-                            <a href="{% url 'shop:home' %}" class="btn btn-outline-primary">
+                            <a href="{% url 'shop:home' %}" class="btn btn-outline-primary"
+                                style="border-radius:12px;">
                                 <i class="bi bi-house"></i> Về trang chủ
                             </a>
                         </div>
-                    </form>
-                    {% endif %}
-                </div>
-            </div>
 
-            <!-- Chi tiết sản phẩm -->
-            <div class="card shadow-sm mt-4">
-                <div class="card-header">
-                    <h5 class="mb-0"><i class="bi bi-box"></i> Chi tiết đơn hàng</h5>
+                    </div>
                 </div>
-                <div class="card-body">
-                    <div class="table-responsive">
-                        <table class="table">
-                            <thead>
-                                <tr>
-                                    <th>Sản phẩm</th>
-                                    <th>Phân loại</th>
-                                    <th class="text-center">Số lượng</th>
-                                    <th class="text-end">Đơn giá</th>
-                                    <th class="text-end">Thành tiền</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for item in order.items.all %}
-                                <tr>
-                                    <td>{{ item.product.name }}</td>
-                                    <td>
-                                        {% if item.variant %}
-                                        {% if item.variant.size %}Size: {{ item.variant.size }}{% endif %}
-                                        {% if item.variant.color %}<br>{{ item.variant.get_color_display }}{% endif %}
-                                        {% else %}
-                                        -
-                                        {% endif %}
-                                    </td>
-                                    <td class="text-center">{{ item.quantity }}</td>
-                                    <td class="text-end">{{ item.price|vnd_format }} đ</td>
-                                    <td class="text-end fw-bold">{{ item.get_subtotal|vnd_format }} đ</td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                            <tfoot>
-                                <tr>
-                                    <td colspan="4" class="text-end fw-bold">Tổng cộng:</td>
-                                    <td class="text-end fw-bold text-danger fs-5">{{ order.total_price|vnd_format }} đ</td>
-                                </tr>
-                            </tfoot>
-                        </table>
+
+                <!-- Chi tiết sản phẩm -->
+                <div class="order-detail-card card">
+                    <div class="card-header bg-white" style="padding:18px 24px;">
+                        <h5 class="mb-0"><i class="bi bi-box"></i> Chi tiết đơn hàng</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table align-middle">
+                                <thead>
+                                    <tr>
+                                        <th>Sản phẩm</th>
+                                        <th>Phân loại</th>
+                                        <th class="text-center">SL</th>
+                                        <th class="text-end">Đơn giá</th>
+                                        <th class="text-end">Thành tiền</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for item in order.items.all %}
+                                    <tr>
+                                        <td>{{ item.product.name }}</td>
+                                        <td>
+                                            {% if item.variant %}
+                                            {% if item.variant.size %}Size: {{ item.variant.size }}{% endif %}
+                                            {% if item.variant.color %}<br>{{ item.variant.get_color_display }}{% endif %}
+                                            {% else %}
+                                            -
+                                            {% endif %}
+                                        </td>
+                                        <td class="text-center">{{ item.quantity }}</td>
+                                        <td class="text-end">{{ item.price|vnd_format }} đ</td>
+                                        <td class="text-end fw-bold">{{ item.get_subtotal|vnd_format }} đ</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                                <tfoot>
+                                    {% if order.discount > 0 %}
+                                    <tr>
+                                        <td colspan="4" class="text-end text-success">Giảm giá:</td>
+                                        <td class="text-end text-success">-{{ order.discount|vnd_format }} đ</td>
+                                    </tr>
+                                    {% endif %}
+                                    {% if order.shipping_fee > 0 %}
+                                    <tr>
+                                        <td colspan="4" class="text-end">Phí vận chuyển:</td>
+                                        <td class="text-end">{{ order.shipping_fee|vnd_format }} đ</td>
+                                    </tr>
+                                    {% else %}
+                                    <tr>
+                                        <td colspan="4" class="text-end">Phí vận chuyển:</td>
+                                        <td class="text-end text-success">Miễn phí</td>
+                                    </tr>
+                                    {% endif %}
+                                    <tr>
+                                        <td colspan="4" class="text-end fw-bold">Tổng cộng:</td>
+                                        <td class="text-end fw-bold text-danger fs-5">{{ order.total_price|vnd_format }} đ</td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -211,24 +275,45 @@
     </div>
 </div>
 
-{% if payment.method != 'cod' %}
-<!-- Script kiểm tra trạng thái thanh toán (chỉ cho QR) -->
+<!-- Script kiểm tra trạng thái thanh toán -->
 <script>
-    // Copy to clipboard function
+    // Copy to clipboard
     function copyToClipboard(text) {
-        navigator.clipboard.writeText(text).then(function () {
-            alert('Đã sao chép: ' + text);
+        navigator.clipboard.writeText(text).then(function() {
+            // Tạo tooltip nhỏ
+            const toast = document.createElement('div');
+            toast.textContent = 'Đã sao chép: ' + text;
+            toast.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:10px 24px;border-radius:8px;z-index:9999;font-size:.9rem;';
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 2000);
         });
     }
 
-    // Auto-check payment status every 5 seconds
-    let checkInterval = setInterval(function () {
+    // ===== Countdown timer (15 phút) =====
+    let timeLeft = 15 * 60; // 15 phút
+    const countdownEl = document.getElementById('countdown-timer');
+
+    const countdownInterval = setInterval(function() {
+        timeLeft--;
+        const min = Math.floor(timeLeft / 60);
+        const sec = timeLeft % 60;
+        countdownEl.textContent = min.toString().padStart(2, '0') + ':' + sec.toString().padStart(2, '0');
+
+        if (timeLeft <= 0) {
+            clearInterval(countdownInterval);
+            countdownEl.textContent = 'Hết thời gian';
+        }
+    }, 1000);
+
+    // ===== Auto-check payment status mỗi 5 giây =====
+    let checkInterval = setInterval(function() {
         fetch('{% url "shop:check_payment_status" order.id %}')
             .then(response => response.json())
             .then(data => {
                 if (data.paid) {
-                    // Thanh toán thành công
+                    // Thanh toán thành công!
                     clearInterval(checkInterval);
+                    clearInterval(countdownInterval);
 
                     // Ẩn trạng thái chờ, hiện thông báo thành công
                     document.getElementById('waiting-status').classList.add('d-none');
@@ -236,21 +321,20 @@
                     document.getElementById('payment-status').className = 'badge bg-success';
                     document.getElementById('payment-status').textContent = 'Đã thanh toán';
 
-                    // Chuyển hướng sau 2 giây
-                    setTimeout(function () {
+                    // Chuyển hướng sau 2.5 giây
+                    setTimeout(function() {
                         window.location.href = "{% url 'shop:order_detail' order.id %}";
-                    }, 2000);
+                    }, 2500);
                 }
             })
             .catch(error => {
                 console.log('Error checking payment status:', error);
             });
-    }, 5000);  // Kiểm tra mỗi 5 giây
+    }, 5000); // Mỗi 5 giây
 
-    // Stop checking after 30 minutes
-    setTimeout(function () {
+    // Dừng kiểm tra sau 15 phút
+    setTimeout(function() {
         clearInterval(checkInterval);
-    }, 30 * 60 * 1000);
+    }, 15 * 60 * 1000);
 </script>
-{% endif %}
 {% endblock %}
