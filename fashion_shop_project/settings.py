@@ -28,7 +28,9 @@ DEBUG = True
 ALLOWED_HOSTS = [
 	'165.22.49.145',
 	'mcshop.me',
-	'www.mcshop.me'
+	'www.mcshop.me',
+	'127.0.0.1',
+	'localhost',
 ]
 
 CSRF_TRUSTED_ORIGINS = [
