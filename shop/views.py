@@ -1313,13 +1313,13 @@ QUY TẮC BẮT BUỘC:
         # ===== 4) GỌI GEMINI API =====
         try:
             model = genai.GenerativeModel(
-                model_name='gemini-1.5-flash',
+                model_name='gemini-pro',
                 system_instruction=system_prompt,
             )
         except Exception as e:
             logger.error(f"[CHATBOT] Gemini model init error: {e}")
             # Fallback: thử không dùng system_instruction
-            model = genai.GenerativeModel('gemini-1.5-flash')
+            model = genai.GenerativeModel('gemini-pro')
 
         # Xây dựng lịch sử hội thoại (đảm bảo xen kẽ user/model)
         gemini_contents = []
