@@ -29,6 +29,11 @@ from .models import (
 from django.db.models import Sum, Count, Q, Value
 from django.db.models.functions import Coalesce
 
+import logging
+import traceback
+
+logger = logging.getLogger(__name__)
+
 
 def home(request):
     """Trang chủ - Hiển thị sản phẩm mới nhất và bán chạy"""
@@ -744,74 +749,107 @@ def sepay_webhook(request):
     """
     Webhook nhận thông báo thanh toán từ SePay
     SePay sẽ gọi endpoint này khi có giao dịch mới
+    
+    QUAN TRỌNG: Đây là CÁCH DUY NHẤT để xác nhận thanh toán.
+    Không có endpoint thủ công nào cho user tự xác nhận.
     """
-    # Xác thực API Key từ header
+    # ===== 1) XÁC THỰC API KEY =====
     auth_header = request.headers.get('Authorization', '')
     expected_key = f"Apikey {getattr(settings, 'SEPAY_API_KEY', '')}"
     
     if auth_header != expected_key:
+        logger.warning(f"[SEPAY] ❌ Unauthorized webhook call. Header: '{auth_header}'")
         return JsonResponse({'success': False, 'error': 'Unauthorized'}, status=401)
     
     try:
+        # ===== 2) PARSE JSON BODY =====
         data = json.loads(request.body)
         
-        # Lấy thông tin giao dịch từ SePay
-        content = data.get('content', '')  # Nội dung chuyển khoản
-        amount = data.get('transferAmount', 0)
-        transaction_id = data.get('id')
+        logger.info(f"[SEPAY] ====== WEBHOOK RECEIVED ======")
+        logger.info(f"[SEPAY] Full data: {json.dumps(data, ensure_ascii=False)}")
         
-        # Tìm mã đơn hàng trong nội dung chuyển khoản
-        # VD: content = "DH123 chuyen khoan" hoặc "thanh toan DH123"
-        match = re.search(r'DH(\d+)', content.upper())
+        # Lấy thông tin giao dịch từ SePay
+        content = data.get('content', '')           # Nội dung chuyển khoản
+        amount = data.get('transferAmount', 0)       # Số tiền
+        transaction_id = data.get('id', '')           # ID giao dịch SePay
+        transfer_type = data.get('transferType', '')  # in / out
+        
+        logger.info(f"[SEPAY] Content: '{content}'")
+        logger.info(f"[SEPAY] Amount: {amount}")
+        logger.info(f"[SEPAY] Transaction ID: {transaction_id}")
+        logger.info(f"[SEPAY] Transfer type: {transfer_type}")
+        
+        # Chỉ xử lý giao dịch "nhận tiền" (in)
+        if transfer_type == 'out':
+            logger.info(f"[SEPAY] ⏭ Skipping outgoing transfer")
+            return JsonResponse({'success': True, 'message': 'Outgoing transfer ignored'})
+        
+        # ===== 3) TÌM MÃ ĐƠN HÀNG =====
+        # Regex cải tiến: hỗ trợ "DH13", "DH 13", "DH13 CK", "THANH TOAN DH 13"
+        # Ngân hàng có thể thêm khoảng trắng vào nội dung CK
+        match = re.search(r'DH\s*(\d+)', content.upper())
         
         if not match:
+            logger.warning(f"[SEPAY] ⚠ No order reference (DHxxx) found in content: '{content}'")
             return JsonResponse({
                 'success': False, 
-                'error': 'No order reference found in content'
+                'error': f'No order reference found in content: {content}'
             })
         
         order_id = int(match.group(1))
+        logger.info(f"[SEPAY] ✓ Matched order ID: {order_id}")
         
+        # ===== 4) TÌM PAYMENT & XÁC NHẬN =====
         try:
-            payment = Payment.objects.get(
+            payment = Payment.objects.select_related('order').get(
                 order_id=order_id,
                 status='pending'
             )
-            
-            # Kiểm tra số tiền khớp (cho phép chênh lệch 1000đ do làm tròn)
-            expected_amount = int(payment.order.total_price)
-            received_amount = int(amount)
-            
-            if abs(expected_amount - received_amount) > 1000:
-                return JsonResponse({
-                    'success': False, 
-                    'error': f'Amount mismatch: expected {expected_amount}, received {received_amount}'
-                })
-            
-            # Cập nhật thanh toán thành công
+        except Payment.DoesNotExist:
+            logger.warning(f"[SEPAY] ⚠ Payment for order #{order_id} not found or already completed")
+            return JsonResponse({
+                'success': False, 
+                'error': f'Payment for order #{order_id} not found or already completed'
+            })
+        
+        # ===== 5) KIỂM TRA SỐ TIỀN =====
+        expected_amount = int(payment.order.total_price)
+        received_amount = int(amount)
+        
+        logger.info(f"[SEPAY] Expected: {expected_amount:,}đ | Received: {received_amount:,}đ")
+        
+        # Cho phép chênh lệch 5000đ (ngân hàng có thể làm tròn hoặc thêm phí)
+        if abs(expected_amount - received_amount) > 5000:
+            logger.error(f"[SEPAY] ❌ Amount mismatch for order #{order_id}: expected {expected_amount}, received {received_amount}")
+            return JsonResponse({
+                'success': False, 
+                'error': f'Amount mismatch: expected {expected_amount}, received {received_amount}'
+            })
+        
+        # ===== 6) CẬP NHẬT THANH TOÁN (ATOMIC) =====
+        with transaction.atomic():
             payment.status = 'completed'
             payment.transaction_id = str(transaction_id)
             payment.paid_at = timezone.now()
             payment.save()
             
-            # Cập nhật trạng thái đơn hàng
             payment.order.status = 'paid'
             payment.order.save()
-            
-            return JsonResponse({
-                'success': True,
-                'message': f'Payment confirmed for order #{order_id}'
-            })
-            
-        except Payment.DoesNotExist:
-            return JsonResponse({
-                'success': False, 
-                'error': f'Payment for order #{order_id} not found or already completed'
-            })
+        
+        logger.info(f"[SEPAY] ✅ Payment CONFIRMED for order #{order_id} | Transaction: {transaction_id}")
+        logger.info(f"[SEPAY] ====== WEBHOOK DONE ======")
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Payment confirmed for order #{order_id}'
+        })
             
     except json.JSONDecodeError:
+        logger.error(f"[SEPAY] ❌ Invalid JSON body")
         return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
     except Exception as e:
+        logger.error(f"[SEPAY] ❌ Unexpected error: {e}")
+        logger.error(f"[SEPAY] Traceback:\n{traceback.format_exc()}")
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
 
@@ -1284,12 +1322,6 @@ def remove_from_wishlist(request, product_id):
     next_url = request.GET.get('next', request.META.get('HTTP_REFERER', 'shop:wishlist'))
     return redirect(next_url)
 
-
-# ===== CHATBOT AI (Google Gemini) =====
-import logging
-import traceback
-
-logger = logging.getLogger(__name__)
 
 try:
     import google.generativeai as genai
