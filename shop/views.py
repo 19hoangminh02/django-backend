@@ -316,7 +316,13 @@ def update_cart(request, item_id):
             
             cart_item.quantity = quantity
             cart_item.save()
-            return JsonResponse({'status': 'success', 'message': 'Đã cập nhật số lượng'})
+            return JsonResponse({
+                'status': 'success',
+                'message': 'Đã cập nhật số lượng',
+                'item_total': float(cart_item.get_subtotal()),
+                'cart_total': float(cart_item.cart.get_total()),
+                'quantity': quantity,
+            })
     
     return JsonResponse({'status': 'error'}, status=400)
 
@@ -363,9 +369,13 @@ def checkout(request):
         messages.warning(request, 'Không có sản phẩm nào để thanh toán.')
         return redirect('shop:cart')
 
+    # Tính subtotal trong Python (không tính trong template)
+    subtotal = sum(item.get_subtotal() for item in cart_items)
+
     return render(request, 'shop/checkout.html', {
         'cart': cart,
-        'cart_items': cart_items
+        'cart_items': cart_items,
+        'subtotal': subtotal,
     })
 
 

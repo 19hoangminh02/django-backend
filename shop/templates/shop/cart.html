@@ -162,9 +162,27 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', function () {
+        const formatter = new Intl.NumberFormat('vi-VN');
+
         // ===== TÍNH TỔNG TIỀN =====
         function calculateTotal() {
             let subtotal = 0;
+
+            // Cập nhật thành tiền cho TẤT CẢ items (kể cả chưa checked)
+            document.querySelectorAll('.quantity-input').forEach(input => {
+                const row = input.closest('.row');
+                const price = parseFloat(row.querySelector('.item-price').dataset.price);
+                const qty = parseInt(input.value) || 1;
+                const itemTotal = price * qty;
+
+                // Cập nhật thành tiền hiển thị cho item
+                const subtotalEl = row.querySelector('.item-subtotal');
+                if (subtotalEl) {
+                    subtotalEl.textContent = formatter.format(itemTotal) + ' đ';
+                }
+            });
+
+            // Tính tổng chỉ từ items đã checked
             document.querySelectorAll('input[name="selected_items"]:checked').forEach(checkbox => {
                 const row = checkbox.closest('.row');
                 const price = parseFloat(row.querySelector('.item-price').dataset.price);
@@ -172,7 +190,6 @@
                 subtotal += price * qty;
             });
 
-            const formatter = new Intl.NumberFormat('vi-VN');
             document.getElementById('subtotal').textContent = formatter.format(subtotal) + ' đ';
             document.getElementById('total').textContent = formatter.format(subtotal) + ' đ';
         }
