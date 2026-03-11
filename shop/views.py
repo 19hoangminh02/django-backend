@@ -1033,3 +1033,155 @@ def remove_from_wishlist(request, product_id):
     
     next_url = request.GET.get('next', request.META.get('HTTP_REFERER', 'shop:wishlist'))
     return redirect(next_url)
+
+
+# ===== CHATBOT AI (Google Gemini) =====
+import google.generativeai as genai
+
+
+@csrf_exempt
+@require_POST
+def chatbot_api(request):
+    """API endpoint cho chatbot AI - sử dụng Google Gemini"""
+    try:
+        data = json.loads(request.body)
+        user_message = data.get('message', '').strip()
+        conversation_history = data.get('history', [])
+
+        if not user_message:
+            return JsonResponse({'reply': 'Bạn chưa nhập tin nhắn!'}, status=400)
+
+        # ===== TRUY VẤN DATABASE ĐỂ LẤY CONTEXT =====
+
+        # 1) Lấy tất cả danh mục
+        categories = Category.objects.all()
+        category_info = ""
+        for cat in categories:
+            if cat.parent:
+                category_info += f"  - {cat.name} (thuộc {cat.parent.name})\n"
+            else:
+                category_info += f"- {cat.name}\n"
+
+        # 2) Tìm sản phẩm liên quan đến câu hỏi
+        search_terms = user_message.lower().split()
+        product_query = Q()
+        for term in search_terms:
+            if len(term) > 2:  # Bỏ qua từ quá ngắn
+                product_query |= Q(name__icontains=term) | Q(description__icontains=term) | Q(category__name__icontains=term)
+
+        matched_products = Product.objects.filter(
+            product_query, is_active=True
+        ).distinct()[:10] if product_query else Product.objects.none()
+
+        product_info = ""
+        if matched_products.exists():
+            for p in matched_products:
+                variants = p.variants.filter(is_available=True)
+                sizes = list(set(v.size for v in variants if v.size))
+                colors = list(set(v.get_color_display() for v in variants if v.color))
+                stock_total = sum(v.stock for v in variants)
+                product_info += (
+                    f"- {p.name} | Giá: {int(p.price):,}đ | "
+                    f"Danh mục: {p.category.name} | "
+                    f"Size: {', '.join(sizes) if sizes else 'N/A'} | "
+                    f"Màu: {', '.join(colors) if colors else 'N/A'} | "
+                    f"Tồn kho: {stock_total} | "
+                    f"Link: /products/{p.id}/\n"
+                )
+
+        # 3) Lấy tất cả sản phẩm (tóm tắt) nếu user hỏi chung
+        all_products_summary = ""
+        general_keywords = ['sản phẩm', 'bán gì', 'có gì', 'shop có', 'danh sách', 'tất cả', 'xem hàng', 'hàng mới']
+        if any(kw in user_message.lower() for kw in general_keywords):
+            all_products = Product.objects.filter(is_active=True).order_by('-created_at')[:20]
+            for p in all_products:
+                all_products_summary += f"- {p.name} | {int(p.price):,}đ | {p.category.name} | Link: /products/{p.id}/\n"
+
+        # 4) Tra cứu đơn hàng (nếu user đã đăng nhập)
+        order_info = ""
+        if request.user.is_authenticated:
+            order_keywords = ['đơn hàng', 'đơn', 'order', 'mua', 'đặt hàng', 'giao hàng', 'theo dõi', 'trạng thái đơn']
+            if any(kw in user_message.lower() for kw in order_keywords):
+                user_orders = Order.objects.filter(user=request.user).order_by('-created_at')[:5]
+                if user_orders.exists():
+                    status_map = dict(Order.STATUS_CHOICES)
+                    for o in user_orders:
+                        items = o.items.all()
+                        items_str = ", ".join([f"{item.product.name} x{item.quantity}" for item in items])
+                        order_info += (
+                            f"- Đơn #{o.id} | Ngày: {o.created_at.strftime('%d/%m/%Y %H:%M')} | "
+                            f"Trạng thái: {status_map.get(o.status, o.status)} | "
+                            f"Tổng: {int(o.total_price):,}đ | "
+                            f"Sản phẩm: {items_str}\n"
+                        )
+                else:
+                    order_info = "Khách hàng chưa có đơn hàng nào.\n"
+
+        # ===== XÂY DỰNG SYSTEM PROMPT =====
+        system_prompt = f"""Bạn là trợ lý tư vấn thời trang AI của MC Shop — một shop thời trang trẻ trung, phong cách hiện đại.
+
+THÔNG TIN VỀ SHOP:
+- Tên: MC Shop
+- Địa chỉ: 343 Xã Tân Dương, Phường Sa Đéc
+- SĐT: 0869 288 871
+- Facebook: facebook.com/19hoangminh02
+- Instagram: instagram.com/minhlkc
+- Thanh toán: QR Code (MB Bank), COD (thanh toán khi nhận hàng)
+
+DANH MỤC SẢN PHẨM:
+{category_info if category_info else "Chưa có thông tin danh mục."}
+
+{"SẢN PHẨM TÌM ĐƯỢC LIÊN QUAN ĐẾN CÂU HỎI:" + chr(10) + product_info if product_info else ""}
+
+{"TẤT CẢ SẢN PHẨM MỚI NHẤT:" + chr(10) + all_products_summary if all_products_summary else ""}
+
+{"ĐƠN HÀNG CỦA KHÁCH:" + chr(10) + order_info if order_info else ""}
+
+{"Khách hàng hiện đang đăng nhập với tên: " + request.user.username if request.user.is_authenticated else "Khách hàng chưa đăng nhập."}
+
+QUY TẮC BẮT BUỘC:
+1. Trả lời bằng tiếng Việt, thân thiện, vui vẻ, có emoji phù hợp.
+2. Khi giới thiệu sản phẩm, LUÔN kèm link dạng [Tên sản phẩm](/products/ID/) để khách click xem.
+3. Khi nói giá, format có dấu phẩy, VD: 299,000đ.
+4. Tư vấn size: S (dưới 50kg), M (50-60kg), L (60-70kg), XL (70-80kg), XXL (trên 80kg) — chỉ là tham khảo.
+5. Nếu khách hỏi về đơn hàng mà chưa đăng nhập, nhắc họ đăng nhập trước.
+6. Nếu không tìm thấy sản phẩm phù hợp, gợi ý khách xem trang sản phẩm: /products/
+7. NẾU KHÁCH HỎI CÂU KHÔNG LIÊN QUAN ĐẾN SHOP/THỜI TRANG/SẢN PHẨM/ĐƠN HÀNG (ví dụ: toán học, lịch sử, chính trị, vv), hãy trả lời: "Mình là chatbot của shop nên chỉ hỗ trợ về sản phẩm thôi nhé 😄 Bạn có thể hỏi mình về sản phẩm, size, đơn hàng hoặc chính sách shop!"
+8. Chính sách shop:
+   - Đổi trả trong 7 ngày nếu sản phẩm lỗi từ nhà sản xuất
+   - Giao hàng toàn quốc, phí ship 30,000đ (miễn phí cho đơn trên 500,000đ)
+   - Hỗ trợ qua Facebook, Instagram hoặc SĐT
+9. Trả lời ngắn gọn, rõ ràng, không quá dài dòng. Tối đa 200 từ.
+"""
+
+        # ===== GỌI GEMINI API =====
+        genai.configure(api_key=settings.GEMINI_API_KEY)
+        model = genai.GenerativeModel('gemini-2.0-flash')
+
+        # Xây dựng lịch sử hội thoại
+        gemini_history = []
+        for msg in conversation_history[-10:]:  # Giữ 10 tin nhắn gần nhất
+            role = 'user' if msg.get('role') == 'user' else 'model'
+            gemini_history.append({
+                'role': role,
+                'parts': [msg.get('content', '')]
+            })
+
+        # Tạo chat session
+        chat = model.start_chat(history=gemini_history)
+
+        # Gửi tin nhắn với system prompt đính kèm
+        full_message = f"[SYSTEM INSTRUCTIONS - KHÔNG HIỂN THỊ CHO KHÁCH]\n{system_prompt}\n\n[TIN NHẮN CỦA KHÁCH HÀNG]\n{user_message}"
+
+        response = chat.send_message(full_message)
+        reply = response.text
+
+        return JsonResponse({'reply': reply})
+
+    except json.JSONDecodeError:
+        return JsonResponse({'reply': 'Lỗi dữ liệu, vui lòng thử lại!'}, status=400)
+    except Exception as e:
+        print(f"Chatbot error: {e}")
+        return JsonResponse({
+            'reply': 'Xin lỗi, mình đang gặp sự cố. Bạn vui lòng thử lại sau nhé! 😅'
+        }, status=500)

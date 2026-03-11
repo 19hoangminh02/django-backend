@@ -21,6 +21,9 @@
     <!-- Custom CSS -->
     <link rel="stylesheet" href="{% static 'shop/css/style.css' %}?v=3">
 
+    <!-- Chatbot CSS -->
+    <link rel="stylesheet" href="{% static 'shop/css/chatbot.css' %}?v=1">
+
     {% block extra_css %}{% endblock %}
 </head>
 
@@ -214,8 +217,231 @@
         </div>
     </footer>
 
+    <!-- ===== CHATBOT WIDGET ===== -->
+    <!-- Toggle Button -->
+    <button class="chatbot-toggle" id="chatbot-toggle" title="Chat với MC Shop">
+        <i class="bi bi-chat-dots-fill"></i>
+    </button>
+
+    <!-- Chat Window -->
+    <div class="chatbot-window" id="chatbot-window">
+        <!-- Header -->
+        <div class="chatbot-header">
+            <div class="chatbot-avatar">🤖</div>
+            <div class="chatbot-header-info">
+                <h6>MC Shop Assistant</h6>
+                <span><span class="status-dot"></span>Đang hoạt động</span>
+            </div>
+            <button class="chatbot-close" id="chatbot-close" title="Đóng">
+                <i class="bi bi-x-lg"></i>
+            </button>
+        </div>
+
+        <!-- Messages -->
+        <div class="chatbot-messages" id="chatbot-messages">
+            <div class="welcome-message">
+                <div class="welcome-icon">👋</div>
+                <h5>Xin chào!</h5>
+                <p>Mình là trợ lý AI của MC Shop. Hỏi mình bất cứ gì về sản phẩm nhé!</p>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="chatbot-quick-actions" id="chatbot-quick-actions">
+            <button class="quick-action-btn" data-msg="Shop có những sản phẩm gì?">🛍️ Xem sản phẩm</button>
+            <button class="quick-action-btn" data-msg="Tư vấn size cho mình">📏 Tư vấn size</button>
+            <button class="quick-action-btn" data-msg="Kiểm tra đơn hàng của tôi">📦 Đơn hàng</button>
+            <button class="quick-action-btn" data-msg="Chính sách đổi trả và giao hàng">🚚 Chính sách</button>
+        </div>
+
+        <!-- Input -->
+        <div class="chatbot-input-area">
+            <input type="text" id="chatbot-input" placeholder="Nhập tin nhắn..." autocomplete="off">
+            <button class="chatbot-send-btn" id="chatbot-send" title="Gửi">
+                <i class="bi bi-send-fill"></i>
+            </button>
+        </div>
+    </div>
+    <!-- ===== END CHATBOT ===== -->
+
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Chatbot JS -->
+    <script>
+    (function() {
+        const toggle = document.getElementById('chatbot-toggle');
+        const chatWindow = document.getElementById('chatbot-window');
+        const closeBtn = document.getElementById('chatbot-close');
+        const messagesEl = document.getElementById('chatbot-messages');
+        const input = document.getElementById('chatbot-input');
+        const sendBtn = document.getElementById('chatbot-send');
+        const quickActionsEl = document.getElementById('chatbot-quick-actions');
+
+        let isOpen = false;
+        let isLoading = false;
+        let conversationHistory = [];
+
+        // Toggle chat
+        toggle.addEventListener('click', () => {
+            isOpen = !isOpen;
+            chatWindow.classList.toggle('open', isOpen);
+            toggle.classList.toggle('active', isOpen);
+            if (isOpen) {
+                toggle.querySelector('i').className = 'bi bi-x-lg';
+                input.focus();
+            } else {
+                toggle.querySelector('i').className = 'bi bi-chat-dots-fill';
+            }
+        });
+
+        closeBtn.addEventListener('click', () => {
+            isOpen = false;
+            chatWindow.classList.remove('open');
+            toggle.classList.remove('active');
+            toggle.querySelector('i').className = 'bi bi-chat-dots-fill';
+        });
+
+        // Quick actions
+        quickActionsEl.addEventListener('click', (e) => {
+            const btn = e.target.closest('.quick-action-btn');
+            if (btn) {
+                const msg = btn.getAttribute('data-msg');
+                sendMessage(msg);
+            }
+        });
+
+        // Send message
+        sendBtn.addEventListener('click', () => {
+            const msg = input.value.trim();
+            if (msg) sendMessage(msg);
+        });
+
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                const msg = input.value.trim();
+                if (msg) sendMessage(msg);
+            }
+        });
+
+        function sendMessage(text) {
+            if (isLoading) return;
+            input.value = '';
+
+            // Hide quick actions after first message
+            quickActionsEl.style.display = 'none';
+
+            // Remove welcome message
+            const welcome = messagesEl.querySelector('.welcome-message');
+            if (welcome) welcome.remove();
+
+            // Add user message
+            appendMessage('user', text);
+            conversationHistory.push({ role: 'user', content: text });
+
+            // Show typing
+            showTyping();
+            isLoading = true;
+            sendBtn.disabled = true;
+
+            // Call API
+            fetch('/api/chatbot/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCSRFToken(),
+                },
+                body: JSON.stringify({
+                    message: text,
+                    history: conversationHistory.slice(0, -1) // Don't include current msg
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                hideTyping();
+                const reply = data.reply || 'Xin lỗi, mình không hiểu. Bạn thử hỏi lại nhé!';
+                appendMessage('bot', reply);
+                conversationHistory.push({ role: 'assistant', content: reply });
+            })
+            .catch(err => {
+                hideTyping();
+                appendMessage('bot', 'Xin lỗi, có lỗi xảy ra. Bạn thử lại sau nhé! 😅');
+                console.error('Chatbot error:', err);
+            })
+            .finally(() => {
+                isLoading = false;
+                sendBtn.disabled = false;
+                input.focus();
+            });
+        }
+
+        function appendMessage(role, text) {
+            const div = document.createElement('div');
+            div.className = `chat-message ${role}`;
+
+            const avatar = document.createElement('div');
+            avatar.className = 'msg-avatar';
+            avatar.textContent = role === 'bot' ? '🤖' : '👤';
+
+            const bubble = document.createElement('div');
+            bubble.className = 'msg-bubble';
+            bubble.innerHTML = formatMessage(text);
+
+            div.appendChild(avatar);
+            div.appendChild(bubble);
+            messagesEl.appendChild(div);
+            scrollToBottom();
+        }
+
+        function formatMessage(text) {
+            // Convert markdown-style formatting to HTML
+            let html = text
+                // Bold
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                // Links [text](url)
+                .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_self">$1</a>')
+                // Line breaks
+                .replace(/\n/g, '<br>');
+
+            // Convert bullet lists
+            html = html.replace(/(?:^|<br>)[-•]\s+(.+?)(?=<br>[-•]|<br>[^<]|$)/g, '<li>$1</li>');
+            if (html.includes('<li>')) {
+                html = html.replace(/(<li>.*<\/li>)/gs, '<ul>$1</ul>');
+            }
+
+            return html;
+        }
+
+        function showTyping() {
+            const div = document.createElement('div');
+            div.className = 'typing-indicator';
+            div.id = 'typing-indicator';
+            div.innerHTML = `
+                <div class="msg-avatar">🤖</div>
+                <div class="typing-dots">
+                    <span></span><span></span><span></span>
+                </div>
+            `;
+            messagesEl.appendChild(div);
+            scrollToBottom();
+        }
+
+        function hideTyping() {
+            const typing = document.getElementById('typing-indicator');
+            if (typing) typing.remove();
+        }
+
+        function scrollToBottom() {
+            messagesEl.scrollTop = messagesEl.scrollHeight;
+        }
+
+        function getCSRFToken() {
+            const cookie = document.cookie.split(';').find(c => c.trim().startsWith('csrftoken='));
+            return cookie ? cookie.split('=')[1] : '';
+        }
+    })();
+    </script>
 
     {% block extra_js %}{% endblock %}
 </body>
