@@ -3,7 +3,7 @@
 {% load humanize %}
 {% load price_filters %}
 
-{% block title %}Gợi ý sản phẩm - Fashion Shop{% endblock %}
+{% block title %}Gợi ý sản phẩm - MC Shop{% endblock %}
 
 {% block content %}
 <div class="container my-5 pt-3">
@@ -13,11 +13,17 @@
                 <i class="bi bi-sparkles"></i> Gợi ý sản phẩm cho bạn
             </h2>
 
-            {% if method == 'ai' %}
+            {% if method == 'category_based' %}
             <div class="alert alert-info alert-dismissible fade show" role="alert">
                 <i class="bi bi-lightbulb"></i>
-                <strong>AI Recommendation!</strong> Dựa trên {{ view_count }} sản phẩm bạn đã xem, chúng tôi gợi ý những
+                <strong>Gợi ý theo sở thích!</strong> Dựa trên {{ view_count }} sản phẩm bạn đã xem, chúng tôi gợi ý những
                 sản phẩm phù hợp với sở thích của bạn.
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+            {% elif method == 'popular' %}
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                <i class="bi bi-fire"></i>
+                <strong>Sản phẩm bán chạy!</strong> Đây là những sản phẩm được khách hàng yêu thích và mua nhiều nhất.
                 <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             </div>
             {% elif method == 'latest' %}
@@ -62,8 +68,10 @@
     <div class="row">
         <div class="col-12">
             <h5 class="fw-bold mb-4">
-                {% if method == 'ai' %}
-                <i class="bi bi-robot"></i> Sản phẩm được AI gợi ý
+                {% if method == 'category_based' %}
+                <i class="bi bi-robot"></i> Sản phẩm được gợi ý cho bạn
+                {% elif method == 'popular' %}
+                <i class="bi bi-fire"></i> Sản phẩm bán chạy nhất
                 {% else %}
                 <i class="bi bi-star"></i> Sản phẩm nổi bật
                 {% endif %}
@@ -86,7 +94,11 @@
                         {% endif %}
                     </a>
                     <span class="badge bg-danger position-absolute top-0 end-0 m-2">
+                        {% if method == 'popular' %}
+                        <i class="bi bi-fire"></i> Bán chạy
+                        {% else %}
                         <i class="bi bi-star-fill"></i> Gợi ý
+                        {% endif %}
                     </span>
                 </div>
                 <div class="card-body p-2">

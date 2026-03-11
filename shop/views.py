@@ -15,7 +15,9 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from django.conf import settings
 from django.utils import timezone
-from .forms import RegisterForm, LoginForm
+from .forms import RegisterForm, LoginForm, EditProfileForm, CustomPasswordChangeForm
+from django.contrib.auth import update_session_auth_hash
+from django.contrib.auth.hashers import check_password
 from django.http import JsonResponse
 from .models import (
     Product, Category, ProductVariant,
@@ -234,7 +236,59 @@ def logout_view(request):
 @login_required
 def profile_view(request):
     """Trang thông tin cá nhân"""
-    return render(request, 'shop/profile.html')
+    orders_count = Order.objects.filter(user=request.user).count()
+    wishlist_count = Wishlist.objects.filter(user=request.user).count()
+    viewed_count = ViewHistory.objects.filter(user=request.user).values('product').distinct().count()
+    
+    context = {
+        'orders_count': orders_count,
+        'wishlist_count': wishlist_count,
+        'viewed_count': viewed_count,
+    }
+    return render(request, 'shop/profile.html', context)
+
+
+@login_required
+def edit_profile(request):
+    """Chỉnh sửa thông tin cá nhân"""
+    if request.method == 'POST':
+        form = EditProfileForm(request.POST, instance=request.user)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Cập nhật thông tin thành công!')
+            return redirect('shop:profile')
+    else:
+        form = EditProfileForm(instance=request.user)
+    
+    return render(request, 'shop/edit_profile.html', {'form': form})
+
+
+@login_required
+def change_password(request):
+    """Đổi mật khẩu"""
+    if request.method == 'POST':
+        form = CustomPasswordChangeForm(request.POST)
+        if form.is_valid():
+            old_password = form.cleaned_data['old_password']
+            new_password1 = form.cleaned_data['new_password1']
+            new_password2 = form.cleaned_data['new_password2']
+            
+            if not request.user.check_password(old_password):
+                form.add_error('old_password', 'Mật khẩu hiện tại không đúng.')
+            elif new_password1 != new_password2:
+                form.add_error('new_password2', 'Mật khẩu mới không khớp.')
+            elif len(new_password1) < 8:
+                form.add_error('new_password1', 'Mật khẩu mới phải có ít nhất 8 ký tự.')
+            else:
+                request.user.set_password(new_password1)
+                request.user.save()
+                update_session_auth_hash(request, request.user)
+                messages.success(request, 'Đổi mật khẩu thành công!')
+                return redirect('shop:profile')
+    else:
+        form = CustomPasswordChangeForm()
+    
+    return render(request, 'shop/change_password.html', {'form': form})
 
 @login_required
 def cart_view(request):
@@ -923,11 +977,9 @@ def admin_statistics(request):
 @login_required
 def ai_recommendations(request):
     """
-    Gợi ý sản phẩm dựa trên lịch sử xem - PHIÊN BẢN ĐƠN GIẢN
-    Không cần pandas/sklearn
+    Gợi ý sản phẩm dựa trên lịch sử xem
+    Priority: 1) Category-based  2) Popular  3) Latest
     """
-    from django.db.models import Count
-    
     # Lấy lịch sử xem của user (loại bỏ sản phẩm trùng lặp, giữ lần xem gần nhất)
     all_history = ViewHistory.objects.filter(
         user=request.user
@@ -943,19 +995,15 @@ def ai_recommendations(request):
         if len(view_history) >= 10:
             break
     
-    if not view_history:
-        # Nếu chưa có lịch sử → gợi ý sản phẩm mới nhất
-        recommended_products = list(Product.objects.filter(
-            is_active=True
-        ).order_by('-created_at')[:8])
-        method = 'latest'
-    else:
-        # Lấy danh mục của các sản phẩm đã xem
+    recommended_products = []
+    method = 'latest'
+    
+    if view_history:
+        # === Strategy 1: Category-based ===
         viewed_products = [vh.product for vh in view_history]
         viewed_product_ids = [p.id for p in viewed_products]
         viewed_categories = list(set([p.category_id for p in viewed_products]))
         
-        # Gợi ý sản phẩm cùng danh mục (loại bỏ sản phẩm đã xem, loại bỏ trùng lặp)
         recommended_products = list(Product.objects.filter(
             is_active=True,
             category_id__in=viewed_categories
@@ -963,18 +1011,66 @@ def ai_recommendations(request):
             id__in=viewed_product_ids
         ).distinct().order_by('-created_at')[:8])
         
-        # Nếu không đủ 8 sản phẩm, thêm sản phẩm mới nhất
+        if recommended_products:
+            method = 'category_based'
+        
+        # === Strategy 2: Popular products (fill remaining) ===
         if len(recommended_products) < 8:
             remaining = 8 - len(recommended_products)
             existing_ids = [p.id for p in recommended_products] + viewed_product_ids
-            more_products = Product.objects.filter(
-                is_active=True
-            ).exclude(
-                id__in=existing_ids
-            ).order_by('-created_at')[:remaining]
-            recommended_products.extend(list(more_products))
+            popular_products = list(
+                Product.objects.filter(is_active=True)
+                .exclude(id__in=existing_ids)
+                .annotate(
+                    total_sold=Coalesce(
+                        Sum('orderitem__quantity',
+                            filter=Q(orderitem__order__status__in=['paid', 'completed'])),
+                        Value(0)
+                    )
+                )
+                .filter(total_sold__gt=0)
+                .order_by('-total_sold')[:remaining]
+            )
+            if popular_products:
+                recommended_products.extend(popular_products)
+                if not method == 'category_based':
+                    method = 'popular'
         
-        method = 'category_based'
+        # === Strategy 3: Latest products (fill remaining) ===
+        if len(recommended_products) < 8:
+            remaining = 8 - len(recommended_products)
+            existing_ids = [p.id for p in recommended_products] + viewed_product_ids
+            latest_products = list(
+                Product.objects.filter(is_active=True)
+                .exclude(id__in=existing_ids)
+                .order_by('-created_at')[:remaining]
+            )
+            recommended_products.extend(latest_products)
+    
+    # No view history at all → fallback
+    if not recommended_products:
+        # Try popular products first
+        recommended_products = list(
+            Product.objects.filter(is_active=True)
+            .annotate(
+                total_sold=Coalesce(
+                    Sum('orderitem__quantity',
+                        filter=Q(orderitem__order__status__in=['paid', 'completed'])),
+                    Value(0)
+                )
+            )
+            .filter(total_sold__gt=0)
+            .order_by('-total_sold')[:8]
+        )
+        if recommended_products:
+            method = 'popular'
+        else:
+            # Final fallback: latest products
+            recommended_products = list(
+                Product.objects.filter(is_active=True)
+                .order_by('-created_at')[:8]
+            )
+            method = 'latest'
     
     context = {
         'recommended_products': recommended_products,

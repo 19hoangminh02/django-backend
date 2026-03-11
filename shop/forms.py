@@ -57,3 +57,62 @@ class LoginForm(AuthenticationForm):
             'placeholder': 'Mật khẩu'
         })
     )
+
+
+class EditProfileForm(forms.ModelForm):
+    """Form chỉnh sửa thông tin cá nhân"""
+    first_name = forms.CharField(
+        label='Họ',
+        max_length=150,
+        required=False,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Họ của bạn'
+        })
+    )
+    last_name = forms.CharField(
+        label='Tên',
+        max_length=150,
+        required=False,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Tên của bạn'
+        })
+    )
+    email = forms.EmailField(
+        label='Email',
+        required=True,
+        widget=forms.EmailInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Email của bạn'
+        })
+    )
+
+    class Meta:
+        model = User
+        fields = ['first_name', 'last_name', 'email']
+
+
+class CustomPasswordChangeForm(forms.Form):
+    """Form đổi mật khẩu với Bootstrap styling"""
+    old_password = forms.CharField(
+        label='Mật khẩu hiện tại',
+        widget=forms.PasswordInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Nhập mật khẩu hiện tại'
+        })
+    )
+    new_password1 = forms.CharField(
+        label='Mật khẩu mới',
+        widget=forms.PasswordInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Nhập mật khẩu mới'
+        })
+    )
+    new_password2 = forms.CharField(
+        label='Xác nhận mật khẩu mới',
+        widget=forms.PasswordInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Nhập lại mật khẩu mới'
+        })
+    )
