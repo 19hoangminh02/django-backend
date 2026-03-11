@@ -232,6 +232,7 @@
     var colorRadios = document.querySelectorAll('input[name="color"]');
     var sizeRadios = document.querySelectorAll('input[name="size"]');
     var productImage = document.getElementById('product-image');
+    var defaultImage = productImage ? productImage.src : '';
 
     // === Helpers ===
     function getSelectedValue(radios) {
@@ -309,9 +310,15 @@
     // === Update product image based on selected color ===
     function updateImage(selectedColor) {
         if (!productImage) return;
+        if (!selectedColor) {
+            productImage.src = defaultImage;
+            return;
+        }
         var radio = document.querySelector('input[name="color"][value="' + selectedColor + '"]');
         if (radio && radio.dataset.image) {
             productImage.src = radio.dataset.image;
+        } else {
+            productImage.src = defaultImage;
         }
     }
 
@@ -328,6 +335,9 @@
         radio.addEventListener('change', function() {
             var size = this.value;
             filterColors(size);
+            // Nếu color đang chọn bị disabled → quay về ảnh gốc
+            var selectedColor = getSelectedValue(colorRadios);
+            updateImage(selectedColor);
         });
     });
 
