@@ -1313,13 +1313,13 @@ QUY TẮC BẮT BUỘC:
         # ===== 4) GỌI GEMINI API =====
         try:
             model = genai.GenerativeModel(
-                model_name='gemini-2.0-flash',
+                model_name='gemini-1.5-flash',
                 system_instruction=system_prompt,
             )
         except Exception as e:
             logger.error(f"[CHATBOT] Gemini model init error: {e}")
             # Fallback: thử không dùng system_instruction
-            model = genai.GenerativeModel('gemini-2.0-flash')
+            model = genai.GenerativeModel('gemini-1.5-flash')
 
         # Xây dựng lịch sử hội thoại (đảm bảo xen kẽ user/model)
         gemini_contents = []
@@ -1351,41 +1351,22 @@ QUY TẮC BẮT BUỘC:
 
         logger.info(f"[CHATBOT] Sending to Gemini with {len(gemini_contents)} messages")
 
-        # Gọi Gemini (with retry)
-        import time
-        reply = None
-        last_error = None
-        for attempt in range(3):
-            try:
-                response = model.generate_content(gemini_contents)
-                reply = response.text
-                logger.info(f"[CHATBOT] Gemini replied (attempt {attempt+1}): {reply[:100]}...")
-                break
-            except Exception as api_err:
-                last_error = api_err
-                error_str = str(api_err)
-                logger.warning(f"[CHATBOT] Gemini attempt {attempt+1} failed: {error_str[:200]}")
-                if '429' in error_str or 'quota' in error_str.lower() or 'ResourceExhausted' in error_str:
-                    # Rate limit - wait and retry
-                    if attempt < 2:
-                        wait_time = (attempt + 1) * 2  # 2s, 4s
-                        logger.info(f"[CHATBOT] Rate limited, waiting {wait_time}s before retry...")
-                        time.sleep(wait_time)
-                        continue
-                    else:
-                        return JsonResponse({
-                            'reply': 'Chatbot đang quá tải, bạn thử lại sau vài giây nhé! ⏳'
-                        })
-                else:
-                    break  # Non-rate-limit error, don't retry
-
-        if reply is None:
-            logger.error(f"[CHATBOT] All attempts failed. Last error: {last_error}")
+        # Gọi Gemini — single request, no retry
+        try:
+            response = model.generate_content(gemini_contents)
+            reply = response.text
+            logger.info(f"[CHATBOT] Gemini replied: {reply[:100]}...")
+            return JsonResponse({'reply': reply})
+        except Exception as api_err:
+            error_str = str(api_err)
+            logger.error(f"[CHATBOT] Gemini API error: {error_str[:300]}")
+            if '429' in error_str or 'quota' in error_str.lower() or 'ResourceExhausted' in error_str:
+                return JsonResponse({
+                    'reply': 'Chatbot đang bận, bạn thử lại sau vài giây nhé! ⏳'
+                })
             return JsonResponse({
                 'reply': 'Xin lỗi, mình đang gặp sự cố. Bạn vui lòng thử lại sau nhé! 😅'
             }, status=500)
-
-        return JsonResponse({'reply': reply})
 
     except json.JSONDecodeError as e:
         logger.error(f"[CHATBOT] JSON decode error: {e}")
