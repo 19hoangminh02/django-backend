@@ -23,18 +23,36 @@ from .models import (
     Order, OrderItem, Payment,
     ViewHistory, Wishlist
 )
-from django.db.models import Sum, Count, Q
+from django.db.models import Sum, Count, Q, Value
+from django.db.models.functions import Coalesce
 
 
 def home(request):
-    """Trang chủ - Hiển thị sản phẩm mới nhất"""
+    """Trang chủ - Hiển thị sản phẩm mới nhất và bán chạy"""
     latest_products = Product.objects.filter(is_active=True).order_by('-created_at')[:8]
+    
+    # Sản phẩm bán chạy: tính tổng số lượng đã bán từ OrderItem
+    # Chỉ tính đơn hàng đã thanh toán (paid) hoặc hoàn thành (completed)
+    trending_products = (
+        Product.objects.filter(is_active=True)
+        .annotate(
+            total_sold=Coalesce(
+                Sum(
+                    'orderitem__quantity',
+                    filter=Q(orderitem__order__status__in=['paid', 'completed'])
+                ),
+                Value(0)
+            )
+        )
+        .order_by('-total_sold', '-created_at')[:8]
+    )
     
     # Lấy danh mục cha (Đồ nam, Đồ nữ)
     parent_categories = Category.objects.filter(parent__isnull=True)
     
     context = {
         'latest_products': latest_products,
+        'trending_products': trending_products,
         'parent_categories': parent_categories,
     }
     return render(request, 'shop/home.html', context)
