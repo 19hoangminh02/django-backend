@@ -307,27 +307,57 @@
         });
     }
 
-    // === Update product image based on selected color ===
-    function updateImage(selectedColor) {
+    // === Update product image based on selected color (and optionally size) ===
+    function updateImage(selectedColor, selectedSize) {
         if (!productImage) return;
         if (!selectedColor) {
             productImage.src = defaultImage;
             return;
         }
-        var radio = document.querySelector('input[name="color"][value="' + selectedColor + '"]');
-        if (radio && radio.dataset.image) {
-            productImage.src = radio.dataset.image;
-        } else {
-            productImage.src = defaultImage;
+
+        var bestImage = '';
+
+        // Ưu tiên 1: Tìm variant khớp cả color + size (nếu có size)
+        if (selectedSize) {
+            for (var i = 0; i < allVariants.length; i++) {
+                var v = allVariants[i];
+                if (v.color === selectedColor && v.size === selectedSize && v.image_url) {
+                    bestImage = v.image_url;
+                    break;
+                }
+            }
         }
+
+        // Ưu tiên 2: Tìm variant đầu tiên khớp color có ảnh
+        if (!bestImage) {
+            for (var i = 0; i < allVariants.length; i++) {
+                var v = allVariants[i];
+                if (v.color === selectedColor && v.image_url) {
+                    bestImage = v.image_url;
+                    break;
+                }
+            }
+        }
+
+        // Ưu tiên 3: Fallback — lấy từ data-image attribute trên radio
+        if (!bestImage) {
+            var radio = document.querySelector('input[name="color"][value="' + selectedColor + '"]');
+            if (radio && radio.dataset.image) {
+                bestImage = radio.dataset.image;
+            }
+        }
+
+        // Set ảnh (hoặc quay về ảnh gốc nếu không tìm thấy)
+        productImage.src = bestImage || defaultImage;
     }
 
     // === Event listeners ===
     colorRadios.forEach(function(radio) {
         radio.addEventListener('change', function() {
             var color = this.value;
+            var size = getSelectedValue(sizeRadios);
             filterSizes(color);
-            updateImage(color);
+            updateImage(color, size);
         });
     });
 
@@ -335,9 +365,8 @@
         radio.addEventListener('change', function() {
             var size = this.value;
             filterColors(size);
-            // Nếu color đang chọn bị disabled → quay về ảnh gốc
             var selectedColor = getSelectedValue(colorRadios);
-            updateImage(selectedColor);
+            updateImage(selectedColor, size);
         });
     });
 
