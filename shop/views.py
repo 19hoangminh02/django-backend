@@ -120,36 +120,34 @@ def product_detail(request, pk):
 
     # ===== UNIQUE COLORS (deduplicated, with display name & image) =====
     color_display_map = dict(ProductVariant.COLOR_CHOICES)
-    seen_colors = set()
-    unique_colors = []
+    unique_colors_dict = {}
     for v in variants:
-        if v.color and v.color not in seen_colors:
-            seen_colors.add(v.color)
-            img_url = ''
-            if v.image:
-                img_url = v.image.url
-            elif product.image:
-                img_url = product.image.url
-            unique_colors.append({
-                'code': v.color,
-                'display': color_display_map.get(v.color, v.color),
-                'image_url': img_url,
-            })
+        if v.color:
+            if v.color not in unique_colors_dict:
+                unique_colors_dict[v.color] = {
+                    'code': v.color,
+                    'display': color_display_map.get(v.color, v.color),
+                    'image_url': v.image.url if v.image else '',
+                }
+            # Nếu chưa có ảnh nhưng variant hiện tại có ảnh -> cập nhật ảnh
+            elif not unique_colors_dict[v.color]['image_url'] and v.image:
+                unique_colors_dict[v.color]['image_url'] = v.image.url
+
+    unique_colors = []
+    for color_data in unique_colors_dict.values():
+        if not color_data['image_url'] and product.image:
+            color_data['image_url'] = product.image.url
+        unique_colors.append(color_data)
 
     # ===== VARIANTS JSON for frontend dynamic filtering =====
     variants_data = []
     for v in variants:
-        img_url = ''
-        if v.image:
-            img_url = v.image.url
-        elif product.image:
-            img_url = product.image.url
         variants_data.append({
             'id': v.id,
             'color': v.color or '',
             'size': v.size or '',
             'stock': v.stock,
-            'image_url': img_url,
+            'image_url': v.image.url if v.image else '',
         })
     variants_json = json.dumps(variants_data)
 
