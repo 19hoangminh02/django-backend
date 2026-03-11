@@ -355,8 +355,10 @@
     colorRadios.forEach(function(radio) {
         radio.addEventListener('change', function() {
             var color = this.value;
-            var size = getSelectedValue(sizeRadios);
+            // UPDATE: Phải filterSizes trước để nó uncheck các size đã hết hàng
             filterSizes(color);
+            // Sau khi filter xong mới lấy giá trị size thực tế còn lại
+            var size = getSelectedValue(sizeRadios);
             updateImage(color, size);
         });
     });
@@ -364,6 +366,7 @@
     sizeRadios.forEach(function(radio) {
         radio.addEventListener('change', function() {
             var size = this.value;
+            // Tương tự, filter color trước
             filterColors(size);
             var selectedColor = getSelectedValue(colorRadios);
             updateImage(selectedColor, size);
