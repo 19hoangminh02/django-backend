@@ -205,7 +205,7 @@ class OrderAdmin(admin.ModelAdmin):
     order_id.short_description = 'Mã ĐH'
     
     def total_display(self, obj):
-        return format_html('<span style="color: #e74c3c; font-weight: bold;">{:,.0f} đ</span>', obj.total_price)
+        return format_html('<span style="color: #e74c3c; font-weight: bold;">{} đ</span>', obj.total_price)
     total_display.short_description = 'Tổng tiền'
     
     def status_badge(self, obj):
