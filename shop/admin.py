@@ -181,7 +181,6 @@ class OrderAdmin(admin.ModelAdmin):
     ordering = ('-created_at',)
     readonly_fields = ('created_at', 'updated_at')
     list_per_page = 25
-    date_hierarchy = 'created_at'
     
     fieldsets = (
         ('Thông tin khách hàng', {
@@ -196,6 +195,10 @@ class OrderAdmin(admin.ModelAdmin):
     )
     
     inlines = [OrderItemInline, PaymentInline]
+    
+    def has_add_permission(self, request):
+        """Ẩn nút Thêm vào - đơn hàng chỉ được tạo từ Frontend"""
+        return False
     
     def order_id(self, obj):
         return format_html('<strong>#{}</strong>', obj.id)
@@ -243,6 +246,10 @@ class PaymentAdmin(admin.ModelAdmin):
     search_fields = ('order__id', 'reference_code', 'transaction_id')
     readonly_fields = ('created_at', 'paid_at')
     list_per_page = 25
+    
+    def has_add_permission(self, request):
+        """Ẩn nút Thêm vào - thanh toán được tạo tự động khi đặt hàng"""
+        return False
     
     def status_badge(self, obj):
         colors = {
