@@ -484,13 +484,13 @@ class Payment(models.Model):
 # Model Lịch sử xem sản phẩm (cho AI recommendation)
 class ViewHistory(models.Model):
     user = models.ForeignKey(
-        User, 
-        on_delete=models.CASCADE, 
+        User,
+        on_delete=models.CASCADE,
         related_name='view_history',
         verbose_name="Người dùng"
     )
     product = models.ForeignKey(
-        Product, 
+        Product,
         on_delete=models.CASCADE,
         verbose_name="Sản phẩm"
     )
@@ -503,28 +503,3 @@ class ViewHistory(models.Model):
     
     def __str__(self):
         return f"{self.user.username} xem {self.product.name}"
-
-
-# Model Sản phẩm yêu thích
-class Wishlist(models.Model):
-    user = models.ForeignKey(
-        User, 
-        on_delete=models.CASCADE, 
-        related_name='wishlist',
-        verbose_name="Người dùng"
-    )
-    product = models.ForeignKey(
-        Product, 
-        on_delete=models.CASCADE,
-        verbose_name="Sản phẩm"
-    )
-    added_at = models.DateTimeField(auto_now_add=True, verbose_name="Ngày thêm")
-    
-    class Meta:
-        verbose_name = "Sản phẩm yêu thích"
-        verbose_name_plural = "Sản phẩm yêu thích"
-        unique_together = ('user', 'product')
-        ordering = ['-added_at']
-    
-    def __str__(self):
-        return f"{self.user.username} thích {self.product.name}"

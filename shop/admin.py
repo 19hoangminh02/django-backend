@@ -12,7 +12,6 @@ from .models import (
     OrderItem, 
     Payment, 
     ViewHistory,
-    Wishlist,
     Coupon
 )
 
@@ -263,16 +262,6 @@ class PaymentAdmin(admin.ModelAdmin):
             color, obj.get_status_display()
         )
     status_badge.short_description = 'Trạng thái'
-
-
-# ===== ADMIN CHO WISHLIST =====
-@admin.register(Wishlist)
-class WishlistAdmin(admin.ModelAdmin):
-    list_display = ('user', 'product', 'added_at')
-    list_filter = ('added_at',)
-    search_fields = ('user__username', 'product__name')
-    ordering = ('-added_at',)
-    list_per_page = 30
 
 
 # ===== ADMIN CHO VIEW HISTORY =====

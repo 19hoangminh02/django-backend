@@ -23,7 +23,7 @@ from .models import (
     Product, Category, ProductVariant,
     Cart, CartItem,
     Order, OrderItem, Payment,
-    ViewHistory, Wishlist,
+    ViewHistory,
     Coupon
 )
 from django.db.models import Sum, Count, Q, Value
@@ -243,12 +243,10 @@ def logout_view(request):
 def profile_view(request):
     """Trang thông tin cá nhân"""
     orders_count = Order.objects.filter(user=request.user).count()
-    wishlist_count = Wishlist.objects.filter(user=request.user).count()
     viewed_count = ViewHistory.objects.filter(user=request.user).values('product').distinct().count()
     
     context = {
         'orders_count': orders_count,
-        'wishlist_count': wishlist_count,
         'viewed_count': viewed_count,
     }
     return render(request, 'shop/profile.html', context)
@@ -1271,56 +1269,6 @@ def ai_recommendations(request):
         'method': method,
     }
     return render(request, 'shop/ai_recommendations.html', context)
-
-
-# ===== WISHLIST VIEWS =====
-@login_required
-def wishlist_view(request):
-    """Danh sách sản phẩm yêu thích"""
-    wishlist_items = Wishlist.objects.filter(
-        user=request.user
-    ).select_related('product', 'product__category')
-    
-    context = {
-        'wishlist_items': wishlist_items,
-    }
-    return render(request, 'shop/wishlist.html', context)
-
-
-@login_required
-def add_to_wishlist(request, product_id):
-    """Thêm sản phẩm vào danh sách yêu thích"""
-    product = get_object_or_404(Product, pk=product_id, is_active=True)
-    
-    wishlist_item, created = Wishlist.objects.get_or_create(
-        user=request.user,
-        product=product
-    )
-    
-    if created:
-        messages.success(request, f'Đã thêm "{product.name}" vào yêu thích!')
-    else:
-        messages.info(request, f'"{product.name}" đã có trong yêu thích!')
-    
-    # Quay lại trang trước
-    next_url = request.GET.get('next', request.META.get('HTTP_REFERER', 'shop:home'))
-    return redirect(next_url)
-
-
-@login_required
-def remove_from_wishlist(request, product_id):
-    """Xóa sản phẩm khỏi danh sách yêu thích"""
-    product = get_object_or_404(Product, pk=product_id)
-    
-    try:
-        wishlist_item = Wishlist.objects.get(user=request.user, product=product)
-        wishlist_item.delete()
-        messages.success(request, f'Đã xóa "{product.name}" khỏi yêu thích!')
-    except Wishlist.DoesNotExist:
-        messages.warning(request, 'Sản phẩm không có trong yêu thích!')
-    
-    next_url = request.GET.get('next', request.META.get('HTTP_REFERER', 'shop:wishlist'))
-    return redirect(next_url)
 
 
 try:
