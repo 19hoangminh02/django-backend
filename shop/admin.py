@@ -280,6 +280,10 @@ class ViewHistoryAdmin(admin.ModelAdmin):
 
 
 # ===== TÙY CHỈNH GIAO DIỆN ADMIN =====
+from django.contrib.auth.models import Group
+
+admin.site.unregister(Group)
+
 admin.site.site_header = "🛍️ Fashion Shop Admin"
 admin.site.site_title = "Fashion Shop"
 admin.site.index_title = "Quản lý cửa hàng thời trang"
