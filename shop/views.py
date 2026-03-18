@@ -924,86 +924,75 @@ def admin_statistics(request):
     total_paid_orders = Order.objects.filter(status__in=paid_statuses).count()
     pending_orders = Order.objects.filter(status='pending').count()
     
+    from collections import defaultdict
+    
     # ===== 1) DOANH THU THEO NGÀY (30 ngày gần nhất) =====
     thirty_days_ago = today - timedelta(days=30)
-    daily_qs = list(
-        Order.objects.filter(created_at__gte=thirty_days_ago, status__in=paid_statuses)
-        .exclude(created_at__isnull=True)
-        .annotate(
-            yr=ExtractYear('created_at'),
-            mn=ExtractMonth('created_at'),
-            dy=ExtractDay('created_at')
-        )
-        .values('yr', 'mn', 'dy')
-        .annotate(revenue=Sum('total_price'))
-        .order_by('yr', 'mn', 'dy')
-    )
-    daily_qs = [item for item in daily_qs if item['dy']]
-    daily_labels = [f"{int(item['dy']):02d}/{int(item['mn']):02d}" for item in daily_qs]
-    daily_revenue = [decimal_to_float(item['revenue']) for item in daily_qs]
+    daily_orders = Order.objects.filter(created_at__gte=thirty_days_ago, status__in=paid_statuses).exclude(created_at__isnull=True)
+    daily_map = defaultdict(float)
+    for o in daily_orders:
+        local_dt = timezone.localtime(o.created_at)
+        key = (local_dt.year, local_dt.month, local_dt.day)
+        daily_map[key] += decimal_to_float(o.total_price)
+        
+    daily_keys = sorted(daily_map.keys())
+    daily_labels = [f"{k[2]:02d}/{k[1]:02d}" for k in daily_keys]
+    daily_revenue = [daily_map[k] for k in daily_keys]
     
     # ===== 2) DOANH THU THEO TUẦN (12 tuần gần nhất) =====
     twelve_weeks_ago = today - timedelta(weeks=12)
-    weekly_qs = list(
-        Order.objects.filter(created_at__gte=twelve_weeks_ago, status__in=paid_statuses)
-        .exclude(created_at__isnull=True)
-        .annotate(yr=ExtractYear('created_at'), wk=ExtractWeek('created_at'))
-        .values('yr', 'wk')
-        .annotate(revenue=Sum('total_price'))
-        .order_by('yr', 'wk')
-    )
-    weekly_qs = [item for item in weekly_qs if item['yr'] and item['wk']]
-    weekly_labels = [f"T{item['wk']}/{item['yr']}" for item in weekly_qs]
-    weekly_revenue = [decimal_to_float(item['revenue']) for item in weekly_qs]
+    weekly_orders = Order.objects.filter(created_at__gte=twelve_weeks_ago, status__in=paid_statuses).exclude(created_at__isnull=True)
+    weekly_map = defaultdict(float)
+    for o in weekly_orders:
+        local_dt = timezone.localtime(o.created_at)
+        iso_year, iso_week, _ = local_dt.isocalendar()
+        key = (iso_year, iso_week)
+        weekly_map[key] += decimal_to_float(o.total_price)
+        
+    weekly_keys = sorted(weekly_map.keys())
+    weekly_labels = [f"T{k[1]}/{k[0]}" for k in weekly_keys]
+    weekly_revenue = [weekly_map[k] for k in weekly_keys]
     
     # ===== 3) DOANH THU THEO THÁNG (12 tháng gần nhất) =====
     twelve_months_ago = today - timedelta(days=365)
-    monthly_qs = list(
-        Order.objects.filter(created_at__gte=twelve_months_ago, status__in=paid_statuses)
-        .exclude(created_at__isnull=True)
-        .annotate(yr=ExtractYear('created_at'), mn=ExtractMonth('created_at'))
-        .values('yr', 'mn')
-        .annotate(revenue=Sum('total_price'), count=Count('id'))
-        .order_by('yr', 'mn')
-    )
-    monthly_qs = [item for item in monthly_qs if item['yr'] and item['mn']]
-    monthly_labels = [f"{int(item['mn']):02d}/{item['yr']}" for item in monthly_qs]
-    monthly_revenue = [decimal_to_float(item['revenue']) for item in monthly_qs]
-    monthly_orders = [item['count'] for item in monthly_qs]
+    monthly_orders_qs = Order.objects.filter(created_at__gte=twelve_months_ago, status__in=paid_statuses).exclude(created_at__isnull=True)
+    monthly_map = defaultdict(float)
+    monthly_count_map = defaultdict(int)
+    for o in monthly_orders_qs:
+        local_dt = timezone.localtime(o.created_at)
+        key = (local_dt.year, local_dt.month)
+        monthly_map[key] += decimal_to_float(o.total_price)
+        monthly_count_map[key] += 1
+        
+    monthly_keys = sorted(monthly_map.keys())
+    monthly_labels = [f"{k[1]:02d}/{k[0]}" for k in monthly_keys]
+    monthly_revenue = [monthly_map[k] for k in monthly_keys]
+    monthly_orders = [monthly_count_map[k] for k in monthly_keys]
     
     # ===== 4) DOANH THU THEO QUÝ (8 quý gần nhất) =====
     two_years_ago = today - timedelta(days=730)
-    quarterly_qs = (
-        Order.objects.filter(created_at__gte=two_years_ago, status__in=paid_statuses)
-        .exclude(created_at__isnull=True)
-        .annotate(yr=ExtractYear('created_at'), mn=ExtractMonth('created_at'))
-        .values('yr', 'mn')
-        .annotate(revenue=Sum('total_price'))
-        .order_by('yr', 'mn')
-    )
-    # Gom theo quý
-    quarter_map = {}
-    for item in quarterly_qs:
-        if not item['yr'] or not item['mn']:
-            continue
-        q_num = (item['mn'] - 1) // 3 + 1
-        key = f"Q{q_num}/{item['yr']}"
-        quarter_map[key] = quarter_map.get(key, 0) + decimal_to_float(item['revenue'])
-    quarterly_labels = list(quarter_map.keys())
-    quarterly_revenue = list(quarter_map.values())
+    quarterly_orders = Order.objects.filter(created_at__gte=two_years_ago, status__in=paid_statuses).exclude(created_at__isnull=True)
+    quarter_map = defaultdict(float)
+    for o in quarterly_orders:
+        local_dt = timezone.localtime(o.created_at)
+        q_num = (local_dt.month - 1) // 3 + 1
+        key = (local_dt.year, q_num)
+        quarter_map[key] += decimal_to_float(o.total_price)
+        
+    quarter_keys = sorted(quarter_map.keys())
+    quarterly_labels = [f"Q{k[1]}/{k[0]}" for k in quarter_keys]
+    quarterly_revenue = [quarter_map[k] for k in quarter_keys]
     
     # ===== 5) DOANH THU THEO NĂM =====
-    yearly_qs = list(
-        Order.objects.filter(status__in=paid_statuses)
-        .exclude(created_at__isnull=True)
-        .annotate(yr=ExtractYear('created_at'))
-        .values('yr')
-        .annotate(revenue=Sum('total_price'))
-        .order_by('yr')
-    )
-    yearly_qs = [item for item in yearly_qs if item['yr']]
-    yearly_labels = [str(item['yr']) for item in yearly_qs]
-    yearly_revenue = [decimal_to_float(item['revenue']) for item in yearly_qs]
+    yearly_orders = Order.objects.filter(status__in=paid_statuses).exclude(created_at__isnull=True)
+    yearly_map = defaultdict(float)
+    for o in yearly_orders:
+        local_dt = timezone.localtime(o.created_at)
+        yearly_map[local_dt.year] += decimal_to_float(o.total_price)
+        
+    yearly_keys = sorted(yearly_map.keys())
+    yearly_labels = [str(k) for k in yearly_keys]
+    yearly_revenue = [yearly_map[k] for k in yearly_keys]
     
     # ===== 6) DOANH THU THEO KHOẢNG THỜI GIAN TÙY CHỌN =====
     from_date_str = request.GET.get('from_date', '')
@@ -1019,31 +1008,23 @@ def admin_statistics(request):
             to_date = datetime.strptime(to_date_str, '%Y-%m-%d')
             to_date_end = to_date + timedelta(days=1)
             
-            custom_qs = (
-                Order.objects.filter(
-                    created_at__gte=from_date,
-                    created_at__lt=to_date_end,
-                    status__in=paid_statuses
-                )
-                .exclude(created_at__isnull=True)
-                .annotate(
-                    yr=ExtractYear('created_at'),
-                    mn=ExtractMonth('created_at'),
-                    dy=ExtractDay('created_at')
-                )
-                .values('yr', 'mn', 'dy')
-                .annotate(revenue=Sum('total_price'))
-                .order_by('yr', 'mn', 'dy')
-            )
-            custom_qs = [item for item in custom_qs if item['dy']]
-            custom_labels = [f"{int(item['dy']):02d}/{int(item['mn']):02d}/{item['yr']}" for item in custom_qs]
-            custom_revenue = [decimal_to_float(item['revenue']) for item in custom_qs]
-            custom_total = sum(custom_revenue)
-            custom_count = Order.objects.filter(
+            custom_orders = Order.objects.filter(
                 created_at__gte=from_date,
                 created_at__lt=to_date_end,
                 status__in=paid_statuses
-            ).count()
+            ).exclude(created_at__isnull=True)
+            
+            custom_map = defaultdict(float)
+            for o in custom_orders:
+                local_dt = timezone.localtime(o.created_at)
+                key = (local_dt.year, local_dt.month, local_dt.day)
+                custom_map[key] += decimal_to_float(o.total_price)
+                
+            custom_keys = sorted(custom_map.keys())
+            custom_labels = [f"{k[2]:02d}/{k[1]:02d}/{k[0]}" for k in custom_keys]
+            custom_revenue = [custom_map[k] for k in custom_keys]
+            custom_total = sum(custom_revenue)
+            custom_count = custom_orders.count()
         except (ValueError, TypeError):
             pass
     
