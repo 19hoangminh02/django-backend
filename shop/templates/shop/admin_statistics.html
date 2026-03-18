@@ -297,5 +297,14 @@
 
   new Chart(document.getElementById("statusChart"), { type: "doughnut", data: { labels: statusLabels, datasets: [{ data: statusCounts, backgroundColor: statusColors, borderWidth: 3, borderColor: "#fff", hoverOffset: 8 }] }, options: { responsive: true, maintainAspectRatio: true, cutout: "55%", plugins: { legend: { position: "bottom", labels: { padding: 15, usePointStyle: true } } } } });
 
+  // Xử lý lỗi canvas Chart.js khi nằm trong tab ẩn sẽ có width/height 0
+  document.querySelectorAll('a[data-bs-toggle="pill"]').forEach(function(el) {
+    el.addEventListener('shown.bs.tab', function (e) {
+      for (let id in Chart.instances) {
+        Chart.instances[id].resize();
+      }
+    });
+  });
+
 </script>
 {% endblock %}

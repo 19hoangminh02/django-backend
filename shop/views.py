@@ -912,7 +912,8 @@ def admin_statistics(request):
         return float(val)
     
     # ===== THỐNG KÊ TỔNG QUAN =====
-    paid_statuses = ['paid', 'completed']
+    # Cập nhật: Tính cả đơn 'processing' (COD đang xử lý) và 'shipping' (đang giao) để biểu đồ nhạy hơn khi test
+    paid_statuses = ['paid', 'completed', 'processing', 'shipping']
     total_orders = Order.objects.count()
     total_revenue = decimal_to_float(
         Order.objects.filter(status__in=paid_statuses)
